@@ -6,8 +6,8 @@ sIn = "/home/roman/dotModus/Data/MTN/flatfile/selection10k.csv"
 
 
 lWanted = [
-    #'cluster_name',
-    #'VOICE_UserType', 
+    'cluster_name',
+    'VOICE_UserType', 
     'PrimaryUsage_Previous30days', 
     'pp_sbm_tenure_in_days', 
     'SMS_TotalSpend_Last30days', 
@@ -115,8 +115,8 @@ def biplot(plt, pca, labels=None, xpc=1, ypc=2, scale=1, bPoints=False):
                   width=0.0015, head_width=0.02)
         plt.text(x* 1.2, y * 1.2, col, color='k', ha='center', va='center', fontsize=10)
 
-    plt.xlabel('PC{}'.format(xpc))
-    plt.ylabel('PC{}'.format(ypc))
+    plt.xlabel('PC{}'.format(xpc+1))
+    plt.ylabel('PC{}'.format(ypc+1))
     
     return lX,lY
 
@@ -130,8 +130,11 @@ def csv2np(sIn):
         sHeadings = f.readline()
         lHeadings = str2list(sHeadings)
         
-        sComponent = "PrimaryUsage_Previous30days"
-        sValue = "DATA"
+        #for component analysis
+        #sComponent = "PrimaryUsage_Previous30days"
+        #sValue = "DATA"
+        sComponent, sValue = ("","")
+        
         
         #get lHeadings
         for sLine in f:
@@ -139,28 +142,29 @@ def csv2np(sIn):
             dLine = dict(zip(lHeadings, lLine))
             
             
-            #if dLine['cluster_name']=='new age': dLine['cluster_name']=10                #0.033759415925477598
-            #elif dLine['cluster_name']=='budget conscious': dLine['cluster_name']=0     #-0.27922707897897081
-            #elif dLine['cluster_name']=='broadcasters': dLine['cluster_name']=0         #-0.013175807456775795
-            #elif dLine['cluster_name']=='VAS users': dLine['cluster_name']=0            #0.30878679045731117
-            #elif dLine['cluster_name']=='receivers': dLine['cluster_name']=0            #-0.33607132025675324
-            #elif dLine['cluster_name']=='data converters': dLine['cluster_name']=0      #-0.011152080713308928
-            #elif dLine['cluster_name']=='telemetry': dLine['cluster_name']=0            #0.42991492995093794
-            #elif dLine['cluster_name']=='low-end': dLine['cluster_name']=0              #-0.17057362008866914
-            #elif dLine['cluster_name']=='mobile warrior': dLine['cluster_name']=0       #-0.059600860532992746
+            if dLine['cluster_name']=='new age': dLine['cluster_name']=0.0337               #0.033759415925477598
+            elif dLine['cluster_name']=='budget conscious': dLine['cluster_name']=-0.279     #-0.27922707897897081
+            elif dLine['cluster_name']=='broadcasters': dLine['cluster_name']=-0.013         #-0.013175807456775795
+            elif dLine['cluster_name']=='VAS users': dLine['cluster_name']=0.308            #0.30878679045731117
+            elif dLine['cluster_name']=='receivers': dLine['cluster_name']=-0.336            #-0.33607132025675324
+            elif dLine['cluster_name']=='data converters': dLine['cluster_name']=-0.011      #-0.011152080713308928
+            elif dLine['cluster_name']=='telemetry': dLine['cluster_name']=0.429            #0.42991492995093794
+            elif dLine['cluster_name']=='low-end': dLine['cluster_name']=-0.170              #-0.17057362008866914
+            elif dLine['cluster_name']=='mobile warrior': dLine['cluster_name']=-0.059       #-0.059600860532992746
             
             
-            #if dLine['VOICE_UserType']=='INBOUND': dLine['VOICE_UserType']=0        #-0.19093736690618129
-            #elif dLine['VOICE_UserType']=='MIXED': dLine['VOICE_UserType']=0        #0.010991888470893434
-            #elif dLine['VOICE_UserType']=="OUTBOUND": dLine['VOICE_UserType']=0     #0.14735872614051032
+            if dLine['VOICE_UserType']=='INBOUND': dLine['VOICE_UserType']=-0.190      #-0.19093736690618129
+            elif dLine['VOICE_UserType']=='MIXED': dLine['VOICE_UserType']=0.010        #0.010991888470893434
+            elif dLine['VOICE_UserType']=="OUTBOUND": dLine['VOICE_UserType']=0.147     #0.14735872614051032
             
-            #if dLine['PrimaryUsage_Previous30days']=='NA': dLine['PrimaryUsage_Previous30days']=0    #-0.41465399296257249
-            #if dLine['PrimaryUsage_Previous30days']=='VOICE': dLine['PrimaryUsage_Previous30days']=0  #0.40552462994901067
-            #if dLine['PrimaryUsage_Previous30days']=='SMS': dLine['PrimaryUsage_Previous30days']=0   #-0.046296024054576904
-            #if dLine['PrimaryUsage_Previous30days']=='DATA': dLine['PrimaryUsage_Previous30days']=0  #-0.077664116058754742
+            if dLine['PrimaryUsage_Previous30days']=='NA': dLine['PrimaryUsage_Previous30days']=-0.414    #-0.41465399296257249
+            if dLine['PrimaryUsage_Previous30days']=='VOICE': dLine['PrimaryUsage_Previous30days']=0.405  #0.40552462994901067
+            if dLine['PrimaryUsage_Previous30days']=='SMS': dLine['PrimaryUsage_Previous30days']=-0.046   #-0.046296024054576904
+            if dLine['PrimaryUsage_Previous30days']=='DATA': dLine['PrimaryUsage_Previous30days']=-0.077  #-0.077664116058754742
             
-            if dLine[sComponent]==sValue: dLine[sComponent] = 10
-            else: dLine[sComponent] = 0
+            ##for component analysis
+            #if dLine[sComponent]==sValue: dLine[sComponent] = 10
+            #else: dLine[sComponent] = 0
             
             lData.append([ float(dLine[s]) for s in lWanted ])
 
@@ -229,14 +233,13 @@ def create_biplot(sIn, lWanted):
     data = (data - data.mean()) / data.std()
     pca = pcasvd(data, keepdim=0, demean=False)
     
-    #import pdb; pdb.set_trace()
-    
     plt.figure(2)
     lX,lY = biplot(plt, pca, labels=data.index, xpc=0, ypc=1, bPoints=False)
     
-    if True:
+    if sComponent != "":
         "get dot product for a variable - investigative tool for categorical units"
         #sComponent = "PrimaryUsage_Previous30days"
+        
         iIndex1 = lWanted.index(sComponent)
         xVar = lX[iIndex1]
         yVar = lY[iIndex1]
@@ -250,10 +253,11 @@ def create_biplot(sIn, lWanted):
         
         rDotProd = (xVar * xTot) + (yVar * yTot)
         print("Dot product = ", rDotProd)
+        
+        plt.suptitle('"{}"  for ({} . {})'.format(sValue, sComponent, sTot))
+        plt.title("Dot product = {}".format(round(rDotProd, 4)))
     
     plt.axis([-1.2,1.2,-1.2,1.2])
-    plt.suptitle('"{}"  for ({} . {})'.format(sValue, sComponent, sTot))
-    plt.title("Dot product = {}".format(round(rDotProd, 4)))
     plt.show()
 
 
