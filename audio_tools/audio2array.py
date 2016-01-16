@@ -1,9 +1,7 @@
-def audio2array(sDir, iResample=None):
+def audio2array(sDir):
     """
     Returns monotone data for a wav audio file in form:  
         iSampleRate, aNumpySignalArray, aNumpyTimeArray
-    iResample is the new resampling rate desired
-    
     """
     from scipy.io.wavfile import read
     import numpy as np
@@ -26,10 +24,5 @@ def audio2array(sDir, iResample=None):
     
     aTime = np.array( [float(i)/iSampleRate for i in range(len(aAudio))] )
     
-    
-    if iResample != None:
-        aAudio = downsample(aAudio, iSampleRate, iResample)
-        aTime = downsample(aTime, iSampleRate, iResample)
-        iSampleRate = float(iResample)
     
     return iSampleRate, aTime, aAudio
