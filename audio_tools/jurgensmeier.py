@@ -1,49 +1,50 @@
-#Roman Hartmann
+#using python 2.7
 #example animal sounds from http://www.wavsource.com/animals/animals.htm
+    #note that those sounds have lots of different sampling rates and encoding types.  Causes problems.
 #required installs:
     #numpy
     #scipy
     #matplotlib
     #pyaudio        -sudo apt-get install python-pyaudio
+    #pydub:         -pip install pydub
 
 
 def example():
     "example sounds and random inputs"
     sExampleSoundsDir = "/home/roman/All/Code/sound_files"
-    sExampleFile1 = 'jaguar.wav'
+    sExampleFile1 = 'bird.wav'
     sExampleFile2 = 'frog.wav'
     oJ = Jurgenmeister(sExampleSoundsDir)
-
-    #dSound1 = oJ.audio2array(sExampleFile1)
+    
+    #load audio into numpy array
+    dSound1 = oJ.audio2array(sExampleFile1)
     dSound2 = oJ.audio2array(sExampleFile2)
-    #oJ.plot_audio(dSound2)
-    #oJ.play_wave(sExampleFile1)
-    #oJ.play_wave(sExampleFile2)
     
-    #first, resample both of them
-    #dResSound1 = oJ.resample(dSound1)
-    #dResSound2 = oJ.resample(dSound2)
+    #Simply adding the arrays is noisy...
+    dResSound1 = oJ.resample(dSound1)
+    dResSound2 = oJ.resample(dSound2)
+    dJoined = oJ.add_sounds(dResSound1, dResSound2)
     
-    #oJ.array2audio(dResSound2)
-    #oJ.plot_audio(dResSound2)
-    #oJ.play_wave('OUTPUT.wav')
+    #pydub method
+    oJ.overlay_sounds(sExampleFile1, sExampleFile2)
     
-    #then join
-    #oJ.join_sounds(dResSound1, dResSound2)
-    
+    #listen to the audio - mixed success with these sounds.
+    oJ.play_array(dSound1)
     oJ.play_array(dSound2)
+    oJ.play_array(dResSound1)
+    oJ.play_array(dResSound2)
+    oJ.play_array(dJoined)
     
-    
-    
-    
+    #see what the waveform looks like
+    oJ.plot_audio(dJoined)
+
 
 
 
 class Jurgenmeister:
     """
     Methods to play as many sounds on command as necessary
-    Named in honour of the guy who asked the question, and its as 
-    good a name as I can come up with myself.
+    Named in honour of op, and its as good a name as I can come up with myself.
     """
     
     def __init__(self, sSoundsDir):
@@ -66,7 +67,7 @@ class Jurgenmeister:
         oWave = wave.open(sDir, 'rb')
         oPyaudio = pyaudio.PyAudio()
         
-        stream = oPyaudio.open(
+        oStream = oPyaudio.open(
             format = oPyaudio.get_format_from_width(oWave.getsampwidth()),
             channels = oWave.getnchannels(),
             rate = oWave.getframerate(),
@@ -75,141 +76,181 @@ class Jurgenmeister:
         
         sData = oWave.readframes(iChunk)
         while sData != '':
-            stream.write(sData)
+            oStream.write(sData)
             sData = oWave.readframes(iChunk)
         
-        stream.stop_stream()
-        stream.close()
+        oStream.stop_stream()
+        oStream.close()
         oPyaudio.terminate()
     
-
 
     
     def audio2array(self, sFileName):
         """
         Returns monotone data for a wav audio file in form:  
             iSampleRate, aNumpySignalArray, aNumpyTimeArray
+            
+            Should perhaps do this with scipy again, but I threw that code away because I wanted 
+            to try the pyaudio package because of its streaming functions.  They defeated me.
         """
-        from scipy.io.wavfile import read
+        import wave
         import numpy as np
-        
+
         sDir = "{}/{}".format(self.sSoundsDir, sFileName)
-        iSampleRate, aSound = read(sDir)
-        print "+++", aSound
+        oWave = wave.open(sDir,"rb")
+        tParams = oWave.getparams()
+        iSampleRate = tParams[2]   #frames per second
+        iLen = tParams[3]  # number of frames
         
-        #make monotone if not already
+        #depending on the type of encoding of the file.  Usually 16
         try:
-            len(aSound[0])
-            bLen = True
-        except TypeError:
-            bLen = False
-        
-        if bLen and len(aSound[0]) == 2:
-            aSound = np.array([ int( ( float(l[0]) + float(l[1]) )/2 ) for l in aSound])
-        else:
-            aSound = np.array(aSound)
+            sSound = oWave.readframes(iLen)
+            oWave.close()
+            
+            aSound = np.fromstring(sSound, np.int16)
+        except ValueError:
+            raise ValueError("""wave package seems to want all wav incodings to be in int16, else it throws a mysterious error.
+                Short way around it:  find audio encoded in the right format.  Or use scipy.io.wavfile.
+                """)
         
         aTime = np.array( [float(i)/iSampleRate for i in range(len(aSound))] )
         
         dRet = {
             'iSampleRate': iSampleRate, 
             'aTime': aTime, 
-            'aSound': aSound
+            'aSound': aSound,
+            'tParams': tParams
         }
         
         return dRet
     
     
     
-    
     def resample(self, dSound, iResampleRate=11025):
             """resample audio arrays
-            other comon audio sample rates are 44100, 22050
+            common audio sample rates are 44100, 22050, 11025, 8000
+            
+            #creates very noisy results sometimes.
             """
             from scipy import interpolate
             import numpy as np
-            aSound = dSound['aSound']
+            aSound = np.array(dSound['aSound'])
+            
             iOldRate = dSound['iSampleRate']
-            iLen = float(len(aSound))
-            iEnd = iLen/iOldRate
+            iOldLen = len(aSound)
+            rPeriod = float(iOldLen)/iOldRate
+            iNewLen = int(rPeriod*iResampleRate)
             
-            aX = np.arange(0, iEnd, 1.0/iOldRate)
-            aX = aX[0:len(aSound)]
-            oInterp = interpolate.interp1d(aX, aSound)
+            aTime = np.arange(0, rPeriod, 1.0/iOldRate)
+            aTime = aTime[0:iOldLen]
+            oInterp = interpolate.interp1d(aTime, aSound)
             
-            aResTime = np.arange(0, iEnd, 1.0/iResampleRate)
+            aResTime = np.arange(0, aTime[-1], 1.0/iResampleRate)
+            aTime = aTime[0:iNewLen]
+            
             aResSound = oInterp(aResTime)
+            aResSound = np.array(aResSound, np.int16)
             
-            dSound = {
+            tParams = list(x for x in dSound['tParams'])
+            tParams[2] = iResampleRate
+            tParams[3] = iNewLen
+            tParams = tuple(tParams)
+            
+            dResSound = {
                 'iSampleRate': iResampleRate, 
                 'aTime': aResTime, 
-                'aSound': aResSound
+                'aSound': aResSound,
+                'tParams': tParams
             }
             
-            return dSound
+            return dResSound
     
     
     
-    def join_sounds(self, dSound1, dSound2):
-        """join two sounds together and return new array"""
-        pass
+    def add_sounds(self, dSound1, dSound2):
+        """join two sounds together and return new array
+        This method creates a lot of clipping.  Not sure how to get around that.
+        """
+        if dSound1['iSampleRate'] != dSound2['iSampleRate']:
+            raise ValueError('sample rates must be the same.  Please resample first.')
+        
+        import numpy as np
+        
+        aSound1 = dSound1['aSound']
+        aSound2 = dSound2['aSound']
+        
+        if len(aSound1) < len(aSound2):
+            aRet = aSound2.copy()
+            aRet[:len(aSound1)] += aSound1
+            aTime = dSound2['aTime']
+            tParams = dSound2['tParams']
+        else:
+            aRet = aSound1.copy()
+            aRet[:len(aSound2)] += aSound2
+            aTime = dSound1['aTime']
+            tParams = dSound1['tParams']
         
         
+        aRet = np.array(aRet, np.int16)
+        
+        dRet = {
+            'iSampleRate': dSound1['iSampleRate'], 
+            'aTime': aTime,
+            'aSound': aRet,
+            'tParams': tParams
+        }
+        
+        return dRet
+    
+    
+    
+    def overlay_sounds(self, sFileName1, sFileName2):
+        "I think this method warrants a bit more exploration
+        Also very noisy."
+        from pydub import AudioSegment
+        
+        sDir1 = "{}/{}".format(self.sSoundsDir, sFileName1)
+        sDir2 = "{}/{}".format(self.sSoundsDir, sFileName2)
+        
+        sound1 = AudioSegment.from_wav(sDir1)
+        sound2 = AudioSegment.from_wav(sDir2)
+        
+        # mix sound2 with sound1, starting at 0ms into sound1)
+        output = sound1.overlay(sound2, position=0)
+        
+        # save the result
+        sDir = "{}/{}".format(self.sSoundsDir, 'OUTPUT.wav')
+        output.export(sDir, format="wav")
+    
+    
     
     def array2audio(self, dSound, sDir=None):
         """
         writes an .wav audio file to disk from an array
         """
+        import struct
+        import wave
         if sDir ==  None:
             sDir = "{}/{}".format(self.sSoundsDir, 'OUTPUT.wav')
         
-        from scipy.io.wavfile import write
-        import numpy as np
+        aSound = dSound['aSound']
+        tParams = dSound['tParams']
+        sSound = struct.pack('h'*len(aSound), *aSound)
         
-        aSound = np.int16([10*i for i in dSound['aSound'] ])
-        print "---", aSound
-        write(sDir, dSound['iSampleRate'], aSound)
-        
+        oWave = wave.open(sDir,"wb")
+        oWave.setparams(tParams)
+        oWave.writeframes(sSound)
+        oWave.close()
+    
     
     
     def play_array(self, dSound):
-        "use pyaudio to play array"
-        import struct
-        import pyaudio
-        aSound = dSound['aSound']
-        sSound = struct.pack('h'*len(aSound), *aSound)
-        
-        
-        
-        #import wave
-        #iChunk = 1024
-        #sDir = "{}/{}".format(self.sSoundsDir, sFileName)
-        #oWave = wave.open(sDir, 'rb')
-        #oPyaudio = pyaudio.PyAudio()
-        
-        #stream = oPyaudio.open(
-            #format = oPyaudio.get_format_from_width(oWave.getsampwidth()),
-            #channels = oWave.getnchannels(),
-            #rate = oWave.getframerate(),
-            #output = True
-        #)
-        
-        #sData = oWave.readframes(iChunk)
-        #while sData != '':
-            #stream.write(sData)
-            #sData = oWave.readframes(iChunk)
-        
-        #stream.stop_stream()
-        #stream.close()
-        #oPyaudio.terminate()
-        
-        
-        #import wave
-        #w = wave.open("{}/OUTPUT.wav".format(self.sSoundsDir),"wb")
-        #w.setparams(p)
-        #w.writeframes(s)
-        #w.close()
-    
+        """Tried to use use pyaudio to play array by just streaming it.  It didn't behave, and I moved on.
+        I'm just not getting the pyaudio stream to play without weird distortion 
+        when not loading from file.  Perhaps you have more luck.
+        """
+        self.array2audio(dSound)
+        self.play_wave('OUTPUT.wav')
     
     
     
@@ -221,42 +262,6 @@ class Jurgenmeister:
     
     
     
-    
-
-
-
-
-
-    
-
-
-
-
-
 
 if __name__ == "__main__":
     example()
-
-
-
-
-#---------------------------
-#get this error when I play pyaudio.  Still works, I just ignore.
-#problem seems to be widespread:
-#http://stackoverflow.com/questions/17137701/pyaudio-alsa-error-messages
-
-#ALSA lib pcm_dsnoop.c:618:(snd_pcm_dsnoop_open) unable to open slave
-#ALSA lib pcm_dmix.c:1022:(snd_pcm_dmix_open) unable to open slave
-#ALSA lib pcm.c:2239:(snd_pcm_open_noupdate) Unknown PCM cards.pcm.rear
-#ALSA lib pcm.c:2239:(snd_pcm_open_noupdate) Unknown PCM cards.pcm.center_lfe
-#ALSA lib pcm.c:2239:(snd_pcm_open_noupdate) Unknown PCM cards.pcm.side
-#bt_audio_service_open: connect() failed: Connection refused (111)
-#bt_audio_service_open: connect() failed: Connection refused (111)
-#bt_audio_service_open: connect() failed: Connection refused (111)
-#bt_audio_service_open: connect() failed: Connection refused (111)
-#ALSA lib pcm_dmix.c:1022:(snd_pcm_dmix_open) unable to open slave
-#Cannot connect to server socket err = No such file or directory
-#Cannot connect to server request channel
-#jack server is not running or cannot be started
-
-
