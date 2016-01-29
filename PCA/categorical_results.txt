@@ -1,0 +1,28 @@
+Each component of the categorical clusters were taken in isolation and dot-producted against "Total_Spent"
+Done preliminary for only 10,000 users, each component was given an arbitrary numerical value of 10 for the tests (one at a time)
+
+['cluster_name']
+'new age': 0.033759415925477598
+'budget conscious': -0.27922707897897081
+'broadcasters': -0.013175807456775795
+'VAS users': 0.30878679045731117
+'receivers': -0.33607132025675324
+'data converters': -0.011152080713308928
+'telemetry': 0.42991492995093794
+'low-end': -0.17057362008866914
+'mobile warrior': -0.059600860532992746
+
+
+['VOICE_UserType']
+'INBOUND': -0.19093736690618129
+'MIXED': 0.010991888470893434
+'OUTBOUND': 0.14735872614051032
+
+
+
+['PrimaryUsage_Previous30days']
+'NA': -0.41465399296257249
+'VOICE': 0.40552462994901067
+'SMS': -0.046296024054576904
+'DATA': -0.077664116058754742
+            
