@@ -10,8 +10,8 @@ def run():
     
     
     
-    lsEntKeywords = oS.get_keywords('entity')
-    lsSpKeywords = oS.get_keywords('speech')
+    lsEntKeywords = oS.get_keywords(5, 'entity')
+    lsSpKeywords = oS.get_keywords(5, 'speech')
     print(lsEntKeywords)
     print(lsSpKeywords)
 
@@ -167,11 +167,11 @@ class SpacyAnalasys:
             #get the top 3 noun phrases that contain the most common unique nouns
             llNounPhrases = self.speech_tag_elements(llTags, 'NOUN')
             lsNounPhrases = [l[0] for l in sorted(self.remove_similar(llNounPhrases), key = lambda t: t[1], reverse=True)]
-            get_top_phrases(lsNounPhrases, iKW)
+            lsKeywords = get_top_phrases(lsNounPhrases, iKW)
             
         #gets top of every type of entity
         elif sType == 'entity':
-            llEnts = oS.get_entities(self.oDoc)
+            llEnts = self.get_entities(self.oDoc)
             lsEnts = [l[0] for l in llEnts]
             lsKeywords = get_top_phrases(lsEnts, iKW)
             
