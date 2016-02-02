@@ -8,16 +8,14 @@ def run():
 
     oS = SpacyAnalasys(sExamplePath)
     
-    #all sentences
-    lsSents, llSents = oS.sentences()
     
-    #speech tags
-    lTags = oS.speech_tags(llSents[0])
     
-    #---get keywords
-    llEnts = oS.get_ents(oS.oDoc)
-    
-    print oS.get_keywords(llEnts)
+    lsEntKeywords = oS.get_keywords('entity')
+    lsSpKeywords = oS.get_keywords('speech')
+    print(lsEntKeywords)
+    print(lsSpKeywords)
+
+
 
 
 
@@ -34,7 +32,7 @@ class SpacyAnalasys:
         self.oDoc = self.process_text(self.sText)
     
     
-    #Helper functions
+    #-----Helper functions
     def remove_similar(self, lOrig):
         "take list input and return exact and subset excluded items and their counts"
         lOrig = sorted(lOrig, key=len, reverse=True)
@@ -61,11 +59,11 @@ class SpacyAnalasys:
                 if sOrig in sUniq:
                     lCount[-1] += 1
         
-        llUniq = zip(lUniq, lCount)
+        llUniq = list(zip(lUniq, lCount))
         return llUniq
     
     
-    #Spacy functions
+    #-----Spacy functions
     def get_text(self, sPath):
         "unicode text from file"
         with open(sPath, 'r') as f:
@@ -82,8 +80,9 @@ class SpacyAnalasys:
         return oDoc
     
     
-    def sentences(self):
+    def get_sentences(self):
         """
+        list of sentences from self.sText
         lsSentences:  List of sentences in string form
         llSentences:  list of sentences comprised of list of entities
         """
@@ -99,13 +98,27 @@ class SpacyAnalasys:
     
     def speech_tags(self, lWords):
         "returns list of speech tags (essentially words) given list of words"
-        lTags = []
+        llTags = []
         for oToken in lWords:
-            lTags.append([oToken.orth_, oToken.pos_])
-        return lTags
+            llTags.append([oToken.orth_, oToken.pos_])
+        return llTags
     
     
-    def get_ents(self, oText):
+    def speech_tag_elements(self, llTags, sType):
+        "get list of words speech tag elements of certain sType given list of annotated speech tags"
+        lRet = []
+        sEnt = ''
+        for i in range(len(llTags)-1):
+            if llTags[i][1] == sType:
+                sEnt += " {}".format(llTags[i][0])
+            elif llTags[i][1] != sType and sEnt != '':
+                lRet.append(sEnt.strip())
+                sEnt = ''
+        
+        return lRet
+    
+    
+    def get_entities(self, oText):
         "returns list of [entities + entity labels] for each word that is an entitiy."
         loEnts = list(oText.ents)
         lsLabels = [o.label_ for o in loEnts]
@@ -113,46 +126,58 @@ class SpacyAnalasys:
         return llEnts
     
     
-    def get_keywords(self, llEnts):
-        "get keywords from the given labelled entities"
-        #all gpe, org, event, person
-        lGpes = [l[0] for l in llAllEnts if l[1]=='GPE']
-        lOrgs = [l[0] for l in llAllEnts if l[1]=='ORG']
-        lEvents = [l[0] for l in llAllEnts if l[1]=='EVENT']
-        lPersons = [l[0] for l in llAllEnts if l[1]=='PERSON']
+    def get_keywords(self, iKW, sType):
+        """get keywords from the given labelled entities
+        sType is either 'speech' or 'entity'
+        """
         
-        #remove duplicates and subsets and get most common
-        sGpe = sorted(self.remove_similar(lGpes), key = lambda t: t[1], reverse=True)[0][0]
-        sOrg = sorted(self.remove_similar(lOrgs), key = lambda t: t[1], reverse=True)[0][0]
-        sEvent = sorted(self.remove_similar(lEvents), key = lambda t: t[1], reverse=True)[0][0]
-        sPerson = sorted(self.remove_similar(lPersons), key = lambda t: t[1], reverse=True)[0][0]
+        #get most common noun
+        lText = [oWord for oWord in self.oDoc]
+        llTags = self.speech_tags(lText)
+        lNouns = []
+        for i in range(len(llTags)):
+            if llTags[i][1] == 'NOUN':
+                lNouns.append(llTags[i][0].strip())
+        llUniqueNouns = sorted(self.remove_similar(lNouns), key = lambda t: t[1], reverse=True)
+        lsUniqueNouns = [l[0] for l in llUniqueNouns]
         
-        #TODO
-        #check occurences of all NOUN tags (speech_tags(llSent)), especially sets of consecutive nouns
+        def get_top_phrases(lsPhrases, n):
+            "lsPhrases is nouns or entities, n is top nr int"
+            lsKeywords = []
+            lsKeywords = []
+            for i in range(len(lsUniqueNouns)):
+                for sKeyword in lsKeywords:
+                    if lsUniqueNouns[i] in sKeyword:
+                        i += 1
+                sNoun = lsUniqueNouns[i]
+                for j in range(len(lsPhrases)):
+                    sPhrase = lsPhrases[j]
+                    if sNoun in sPhrase and sPhrase not in lsKeywords:
+                        lsKeywords.append(sPhrase)
+                        break
+                
+                #lsKeywords = list(set(lsKeywords))
+                if len(lsKeywords) == 3:
+                    break
+            return lsKeywords
         
-        return [sGpe, sOrg, sEvent, sPerson]
         
-
-
-
-
-
-
-class Nltk_methods:
-    "NLTK based methods"
-    from textblob import TextBlob
-        #https://textblob.readthedocs.org/en/latest/api_reference.html#textblob.blob.TextBlob.tags
-    
-    import nltk
-        #http://www.nltk.org/
+        #gets top of every type of speech noun
+        if sType == 'speech':
+            #get the top 3 noun phrases that contain the most common unique nouns
+            llNounPhrases = self.speech_tag_elements(llTags, 'NOUN')
+            lsNounPhrases = [l[0] for l in sorted(self.remove_similar(llNounPhrases), key = lambda t: t[1], reverse=True)]
+            get_top_phrases(lsNounPhrases, iKW)
+            
+        #gets top of every type of entity
+        elif sType == 'entity':
+            llEnts = oS.get_entities(self.oDoc)
+            lsEnts = [l[0] for l in llEnts]
+            lsKeywords = get_top_phrases(lsEnts, iKW)
+            
+        return lsKeywords
         
-    
-    def __init__(self):
-        pass
-    
-    def get_text(self, sPath):
-        with open(sPath, 'r') as f:
-            sText = f.read()
+            
 
 
 
