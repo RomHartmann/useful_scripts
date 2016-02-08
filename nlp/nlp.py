@@ -3,17 +3,20 @@
 def run():
     import os
     sHerePath = os.getcwd()
-    sExamplePath = "{}/news_sample.txt".format(sHerePath)
-
-
+    sExamplePath = "{}/economy_sample.txt".format(sHerePath)
+    
     oS = SpacyAnalasys(sExamplePath)
     
-    
-    
     lsEntKeywords = oS.get_keywords(5, 'entity')
-    lsSpKeywords = oS.get_keywords(5, 'speech')
-    print(lsEntKeywords)
-    print(lsSpKeywords)
+    lsSpKeywords = oS.get_keywo2rds(5, 'speech')
+    print("-------", sExamplePath)
+    print('entity keywords:  ', lsEntKeywords)
+    print('parts of speech keywords', lsSpKeywords)
+    
+    
+    
+    
+    
 
 
 
@@ -26,6 +29,7 @@ class SpacyAnalasys:
         #pip install spacy
         #python -m spacy.en.download
         #need newest version of numpy
+    #pip install unidecode
     
     def __init__(self, sPath):
         self.sText = self.get_text(sPath)
@@ -110,7 +114,7 @@ class SpacyAnalasys:
         sEnt = ''
         for i in range(len(llTags)-1):
             if llTags[i][1] == sType:
-                sEnt += " {}".format(llTags[i][0])
+                sEnt += " " + llTags[i][0]
             elif llTags[i][1] != sType and sEnt != '':
                 lRet.append(sEnt.strip())
                 sEnt = ''
