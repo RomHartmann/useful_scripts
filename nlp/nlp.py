@@ -3,17 +3,17 @@
 def run():
     import os
     sHerePath = os.getcwd()
-    sExamplePath = "{}/economy_sample.txt".format(sHerePath)
-    
+    sExamplePath = "{}/economy_sample2.txt".format(sHerePath)
+
     oS = SpacyAnalasys(sExamplePath)
-    
-    lsEntKeywords = oS.get_keywords(5, 'entity')
-    lsSpKeywords = oS.get_keywo2rds(5, 'speech')
+
+    lsEntKeywords = oS.get_keywords(3, 'entity')
+    lsSpKeywords = oS.get_keywords(3, 'speech')
     print("-------", sExamplePath)
     print('entity keywords:  ', lsEntKeywords)
     print('parts of speech keywords', lsSpKeywords)
-    
-    
+
+
     
     
     
@@ -23,15 +23,20 @@ def run():
 
 
 class SpacyAnalasys:
-    "methods based on spaCy algorithm"
-    #import spacy
-        #https://spacy.io/
-        #pip install spacy
-        #python -m spacy.en.download
-        #need newest version of numpy
-    #pip install unidecode
+    """methods based on spaCy algorithm
+    required packages:
+        pip install numpy
+        SpaCy
+            https://spacy.io/
+            pip install spacy
+            python -m spacy.en.download
+            need newest version of numpy
+        pip install unidecode
+    """
     
     def __init__(self, sPath):
+        from spacy.en import English
+        self.oNlp = English()
         self.sText = self.get_text(sPath)
         self.oDoc = self.process_text(self.sText)
     
@@ -78,9 +83,7 @@ class SpacyAnalasys:
     
     def process_text(self, sText):
         "loads nlp packages and inserts text.  Returns nlp object"
-        from spacy.en import English
-        oNlp = English()
-        oDoc = oNlp(sText)
+        oDoc = self.oNlp(sText)
         return oDoc
     
     
@@ -100,10 +103,10 @@ class SpacyAnalasys:
         return lsSentences, llSentences
     
     
-    def speech_tags(self, lWords):
+    def speech_tags(self, loWords):
         "returns list of speech tags (essentially words) given list of words"
         llTags = []
-        for oToken in lWords:
+        for oToken in loWords:
             llTags.append([oToken.orth_, oToken.pos_])
         return llTags
     
@@ -114,7 +117,7 @@ class SpacyAnalasys:
         sEnt = ''
         for i in range(len(llTags)-1):
             if llTags[i][1] == sType:
-                sEnt += " " + llTags[i][0]
+                sEnt += u' {}'.format(llTags[i][0])
             elif llTags[i][1] != sType and sEnt != '':
                 lRet.append(sEnt.strip())
                 sEnt = ''
@@ -123,21 +126,40 @@ class SpacyAnalasys:
     
     
     def get_entities(self, oText):
-        "returns list of [entities + entity labels] for each word that is an entitiy."
+        """returns list of [entities + entity labels] for each word that is an entitiy.  
+        Returns type Span
+        oSpan.root = type(Token)"""
         loEnts = list(oText.ents)
         lsLabels = [o.label_ for o in loEnts]
         llEnts = [[loEnts[i].orth_, lsLabels[i]] for i in range(len(lsLabels)) ]
         return llEnts
     
     
+    def get_similar_words(self, oWord, iMin=0, iMax=10):
+        "get similar words by word vectors.  iMin/ iMax are indeces for the segment of most similar words"
+        from numpy import dot
+        from numpy.linalg import norm
+        oCos = lambda v1, v2: dot(v1, v2) / (norm(v1) * norm(v2))
+        loAllWords = [w for w in self.oNlp.vocab if w.has_vector]
+        loAllWords.sort(key=lambda w: oCos(w.vector, oWord.vector))
+        loAllWords.reverse()
+        loSimilar = [w.orth_ for w in loAllWords[iMin:iMax]]
+        
+        return loSimilar
+    
+    def extract_subject(self, oText):
+        "extract the subject and objects from the text."
+        from subject_object_extraction import findSVOs
+        return findSVOs(oText)
+    
+    
     def get_keywords(self, iKW, sType):
         """get keywords from the given labelled entities
         sType is either 'speech' or 'entity'
         """
-        
         #get most common noun
-        lText = [oWord for oWord in self.oDoc]
-        llTags = self.speech_tags(lText)
+        loText = [oWord for oWord in self.oDoc]
+        llTags = self.speech_tags(loText)
         lNouns = []
         for i in range(len(llTags)):
             if llTags[i][1] == 'NOUN':
@@ -145,27 +167,25 @@ class SpacyAnalasys:
         llUniqueNouns = sorted(self.remove_similar(lNouns), key = lambda t: t[1], reverse=True)
         lsUniqueNouns = [l[0] for l in llUniqueNouns]
         
-        def get_top_phrases(lsPhrases, n):
-            "lsPhrases is nouns or entities, n is top nr int"
-            lsKeywords = []
+        def get_top_phrases(lsPhrases, iKW):
+            "lsPhrases is nouns or entities, iKW number of keywords"
             lsKeywords = []
             for i in range(len(lsUniqueNouns)):
+                #prevent repetition of constituent nouns
                 for sKeyword in lsKeywords:
                     if lsUniqueNouns[i] in sKeyword:
                         i += 1
                 sNoun = lsUniqueNouns[i]
-                for j in range(len(lsPhrases)):
-                    sPhrase = lsPhrases[j]
-                    if sNoun in sPhrase and sPhrase not in lsKeywords:
+                for sPhrase in lsPhrases:
+                    if sNoun in sPhrase and sPhrase not in lsKeywords:  #prevent repetition of keyword phrases
                         lsKeywords.append(sPhrase)
                         break
                 
-                #lsKeywords = list(set(lsKeywords))
-                if len(lsKeywords) == 3:
+                if len(lsKeywords) == iKW:
                     break
             return lsKeywords
-        
-        
+                
+                
         #gets top of every type of speech noun
         if sType == 'speech':
             #get the top 3 noun phrases that contain the most common unique nouns
@@ -180,8 +200,8 @@ class SpacyAnalasys:
             lsKeywords = get_top_phrases(lsEnts, iKW)
             
         return lsKeywords
-        
-            
+
+    
 
 
 
