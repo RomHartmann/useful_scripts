@@ -3,16 +3,18 @@
 def run():
     import os
     sHerePath = os.getcwd()
-    sExamplePath = "{}/news_sample2.txt".format(sHerePath)
+    sPath = "{}/news_sample2.txt".format(sHerePath)
+    
+    from spacy.en import English
+    oNlp = English()
+    oS = Sirakis(sPath, oNlp)
 
-    oS = Sirakis(sExamplePath)
-
-    print(sExamplePath)
+    print(sPath)
     print(oS.keywords())
 
     #lsEntKeywords = oS.get_keywords(3, 'entity')
     #lsSpKeywords = oS.get_keywords(3, 'speech')
-    #print("-------", sExamplePath)
+    #print("-------", sPath)
     #print('entity keywords:  ', lsEntKeywords)
     #print('parts of speech keywords', lsSpKeywords)
 
@@ -37,6 +39,8 @@ class Sirakis:
             pip install spacy
             python -m spacy.en.download
             need newest version of numpy
+    sPath is the path to the text file containing the article
+    bN24: True if follows News 24 format of having the location as the first element
     """
     
     #---helper functions
@@ -62,57 +66,66 @@ class Sirakis:
     
     
     
-    def remove_similar(self, lsOrig):
-        "take list input and return exact and subset excluded items and their counts"
-        lsOrig.sort(key=len, reverse=True)
+    #def remove_similar(self, lsOrig):
+        #"take list input and return exact and subset excluded items and their counts"
+        #lsOrig.sort(key=len, reverse=True)
         
-        #check if a similar already exists in the new list
-        def similar_exists(sItem, l):
-            for s in l:
-                if sItem in s:
-                    return s
-            return False
+        ##check if a similar already exists in the new list
+        #def similar_exists(sItem, l):
+            #for s in l:
+                #if sItem in s:
+                    #return s
+            #return False
         
-        #only add new to list if it does not alredy exist
-        dRet = {}
-        for s in lsOrig:
-            sInD = similar_exists(s, dRet.keys())
-            if s not in dRet and not sInD:
-                dRet[s] = 1
-            else:
-                dRet[sInD] += 1
+        ##only add new to list if it does not alredy exist
+        #dRet = {}
+        #for s in lsOrig:
+            #sInD = similar_exists(s, dRet.keys())
+            #if s not in dRet and not sInD:
+                #dRet[s] = 1
+            #else:
+                #dRet[sInD] += 1
         
-        ltRet = [(dRet.keys()[i], dRet.values()[i]) for i in range(len(dRet.keys()))]
-        ltRet = sorted(ltRet, key = lambda t: t[1], reverse=True)
-        return ltRet
+        #ltRet = [(dRet.keys()[i], dRet.values()[i]) for i in range(len(dRet.keys()))]
+        #ltRet = sorted(ltRet, key = lambda t: t[1], reverse=True)
+        #return ltRet
     
     
     
     
-    def __init__(self, sPath):
-        from spacy.en import English
-        self.oNlp           = English()
-        self.sText          = self.get_text(sPath)
-        self.oDoc           = self.process_text(self.sText)
+    def __init__(self, sPath, oNlp, bN24=True):
+        self.oNlp = oNlp
+        self.get_text(sPath, bN24)
+        self.process_text()
+        
         self.loTokens       = [o for o in self.oDoc]
         self.loEntities     = [o for o in self.oDoc.ents]
         self.loSentences    = [o for o in self.oDoc.sents]
-        self.loAllWords     = [w for w in self.oNlp.vocab if w.has_vector]
+        self.loAllWords     = [o for o in self.oNlp.vocab if o.has_vector]
     
     
     #---initial processing functions
-    def get_text(self, sPath):
+    def get_text(self, sPath, bN24):
         "unicode text from file"
         with open(sPath, 'r') as f:
             sText = f.read()
         sText = unicode(sText, "utf-8")
-        return sText
+        
+        #extract location from first elements of text
+        if bN24:
+            sLocation = sText.split(u' - ')[0]
+            sText = u' - '.join(sText.split(u' - ')[1::])
+        else:
+            sLocation = u''
+        
+        self.sText = sText
+        self.sLocation = sLocation.lower().strip()
     
     
-    def process_text(self, sText):
+    def process_text(self):
         "loads nlp packages and inserts text.  Returns nlp object"
-        oDoc = self.oNlp(sText)
-        return oDoc
+        oDoc = self.oNlp(self.sText)
+        self.oDoc = oDoc
     
     
     #---base data functions
@@ -125,48 +138,205 @@ class Sirakis:
     def get_similar_words(self, oToken, iMin=0, iMax=20):
         "get similar words by word vectors.  iMin/ iMax are indeces for the segment of most similar words"
         from numpy import dot
-        from numpy.linalg import norm
-        oCos  = lambda v1, v2: dot(v1, v2) / (norm(v1) * norm(v2))
-        loAllWords = sorted(self.loAllWords, key=lambda w: oCos(w.vector, oToken.vector), reverse=True)
-        loSimilar = [o for o in loAllWords[iMin:iMax]]
-        lsSimilar = [w.lower_ for w in loAllWords[iMin:iMax]]
+        # token vectors already normalized, hence just dot product
+        loAllWordsSorted = sorted(self.loAllWords, key=lambda oW: dot(oW.vector, oToken.vector), reverse=True)
+        lsSimilar = [o.lower_ for o in loAllWordsSorted[iMin:iMax]]
         
         lsUniqueSimilar = self.uniquify(lsSimilar)
         
         return lsUniqueSimilar
     
     
+    def get_vector(self, sWord):
+        "return Lexeme class object form the almighty list of word objects loAllWords"
+        sWord = sWord.lower()
+        for oLex in self.loAllWords:
+            if sWord == oLex.orth_.lower():
+                return oLex.vector
+        import numpy as np
+        return (np.zeros(np.shape(self.loAllWords[1].vector))).astype('float32')
+    
+    
+    
     #---processing functions
-    def sequential_pos_elements(self, loTokens, sType):
+    def get_noun_phrases(self, loTokens):
         "get list of words speech tag elements of certain sType given list of annotated speech tags"
         lRet = []
         sEnt = ''
-        for i in range(len(loTokens)-1):
-            if loTokens[i].pos_ == sType:
-                sEnt += u' {}'.format(loTokens[i].lemma_)
-            elif loTokens[i].pos_ != sType and sEnt != '':
+        for oToken in loTokens:
+            if oToken.pos_ == u'NOUN':
+                sEnt += u' {}'.format(oToken.lemma_)
+            elif oToken.pos_ != u'NOUN' and sEnt != '':
                 lRet.append(sEnt.strip())
                 sEnt = ''
         
         return lRet
     
     
+    
     def keywords(self, iKeywords=3):
         """
         Returns list with most common noun entity supersets
         """
-        #TODO where, who, what
-        loTokensCleaned = [o for o in self.loTokens if u'\u2019' not in o.lemma_ and u'u\201d' not in o.lemma_]
-        loTokens = [o for o in loTokensCleaned if o.pos_ != u'SPACE']
         
-        #lsNouns = oS.sequential_pos_elements(loTokensCleaned, u'NOUN')
-        #lsUniqNouns = self.uniquify(lsNouns, True)
-        #lsSimilarNouns = self.remove_similar(lsNouns)
-        lsEntities = [o.lemma_ for o in self.loEntities if o.root.pos_ == u'NOUN']
         
-        #lsUniqEntities = self.uniquify(lsEntities, True)
-        ltSimilarEntities = self.remove_similar(lsEntities)
-        lsKeywords = [t[0] for t in ltSimilarEntities[0:iKeywords]]
+#---get important noun phrases
+dTokens = {}
+for o in self.loTokens:
+    dTokens[o.lemma_] = o
+
+loTokensCleaned = [o for o in self.loTokens if u'\u2019' not in o.lemma_ and u'u\201d' not in o.lemma_]
+loTokens = [o for o in loTokensCleaned if o.pos_ != u'SPACE']
+
+lsNounPhrases = oS.get_noun_phrases(loTokensCleaned)
+
+lsImportantNouns = []
+for sNoun in lsNounPhrases:
+    try:
+        oNoun = dTokens[sNoun]
+        if oNoun.ent_type_ == u'GPE' or oNoun.ent_type_ == u'PERSON' or oNoun.ent_type_ == u'ORG':
+            lsImportantNouns.append(oNoun.lemma_)
+    except KeyError:
+        lsImportantNouns.append(sNoun)
+
+
+lsUniqueNouns = self.uniquify(lsNounPhrases, True)
+#lsSimilarNouns = self.remove_similar(lsNounPhrases)
+loUniqueNouns = [dTokens[s[0]] for s in lsUniqueNouns if s[0] in dTokens.keys()]
+#loSimilarNouns = [dTokens[s[0]] for s in lsSimilarNouns if s[0] in dTokens.keys()]
+lsUniqueImportantNouns = self.uniquify(lsImportantNouns, True)
+#lsSimilarImportantNouns = self.remove_similar(lsImportantNouns)
+#---
+
+#---get top entities of each relevant kind
+dEnts = {}
+for o in self.loEntities:
+    dEnts[o.lemma_] = o
+
+lsEntities = [o.lemma_ for o in self.loEntities if o.label_ == u'GPE' or o.label_ == u'PERSON' or o.label_ == u'ORG']
+
+lsUniqueEntities = self.uniquify(lsEntities, True)
+#ltSimilarEntities = self.remove_similar(lsEntities)
+loSimilarEnts = [dEnts[s[0]] for s in lsUniqueEntities]
+
+oTopPlaceEnt = None
+for oEnt in loSimilarEnts:
+    if oEnt.label_ == u'GPE':
+        oTopPlaceEnt = oEnt
+        break
+
+oTopPersonEnt = None
+for oEnt in loSimilarEnts:
+    if oEnt.label_ == u'PERSON':
+        oTopPersonEnt = oEnt
+        break
+
+oTopOrgEnt = None
+for oEnt in loSimilarEnts:
+    if oEnt.label_ == u'ORG':
+        oTopOrgEnt = oEnt
+        break
+
+lsEntKeywords = [oTopPlaceEnt, oTopPersonEnt, oTopOrgEnt]
+#-----
+
+
+#unknown items
+loUnknown = [o for o in loNouns if norm(o.vector)==0]
+#---
+
+
+
+#get nouns most similar/orthogonal to each other
+loNouns = [o for o in loTokensCleaned if o.pos_ == u'NOUN']
+dSimilar = {}
+dDifferent = {}
+dNounCorrelation = {}
+
+for oNoun in loNouns:
+    from numpy import dot
+    loCorrelationWords = sorted(loNouns, key=lambda oW: dot(oW.vector, oNoun.vector), reverse=True)
+    lsSimilar = [o.lower_ for o in loCorrelationWords[1:4]]
+    lsDifferent = [o.lower_ for o in loCorrelationWords[-3::]]
+    
+    lsUniqueSimilar = self.uniquify(lsSimilar)
+    lsUniqueDifferent = self.uniquify(lsDifferent)
+    
+    dSimilar[oNoun.lemma_] = lsUniqueSimilar
+    dDifferent[oNoun.lemma_] = lsUniqueDifferent
+    
+    
+    dNounCorrelation[oNoun.lemma_] = {}
+    dNounCorrelation[oNoun.lemma_][u'similar'] = lsUniqueSimilar
+    dNounCorrelation[oNoun.lemma_][u'different'] = lsUniqueDifferent
+
+#---
+
+
+
+#get highest dot product list
+import numpy as np
+dCorr = {}
+for oNoun in loNouns:
+    dCorr[oNoun.lemma_] = 0
+    for oNoun2 in loNouns:
+        dCorr[oNoun.lemma_] += np.dot(oNoun.vector, oNoun2.vector)
+
+ltHighestCorr = sorted(zip(dCorr.keys(), dCorr.values()), key=lambda t: t[1], reverse=True)
+
+#---
+
+
+#get main element from cluster with cos(theta) > 0.5 (60 degrees)
+import numpy as np
+dClusters = {}
+for oNoun in loNouns:
+    dClusters[oNoun.lemma_] = []
+    for oNoun2 in loNouns:
+        if np.dot(oNoun.vector, oNoun2.vector) > 0.5:
+            dClusters[oNoun.lemma_].append(oNoun2.lemma_)
+
+
+ltAllClusters = sorted(zip(dClusters.keys(), dClusters.values()), key=lambda t: len(t[1]), reverse=True)
+
+#TODO cluters are not supersets yet - do recursively
+
+def add_children(sCluster, dGlobalClusters):
+    try:
+        dGlobalClusters[sCluster] += dClusters[sCluster]
+    except KeyError:
+        dGlobalClusters[sCluster] = dClusters[sCluster]
+    
+    for sKey in dClusters[sCluster]:
+        add_children(sKey, dGlobalClusters)
+    
+    return dGlobalClusters
+
+dGlobalClusters = {}
+add_children(dClusters.keys()[0], dGlobalClusters)
+
+
+
+#dGlobalClusters = {}
+#for sKey in dClusters.keys():
+    #dGlobalClusters[sKey] = []
+    #for s in dClusters[sKey]:
+        #dGlobalClusters[sKey] += dClusters[s]
+    #dGlobalClusters[sKey] = list(set(dGlobalClusters[sKey]))
+
+llGlobalClusters = []
+for lCluster in dGlobalClusters.values():
+    if lCluster not in llGlobalClusters and len(lCluster)>1:
+        llGlobalClusters.append(lCluster)
+
+
+#---
+
+
+
+
+
+
         
         return lsKeywords
     
@@ -175,95 +345,6 @@ class Sirakis:
 
 
     
-    
-    #TODO necessary? -------
-    #def get_sentence_lists(self, loSentences):
-        #"""
-        #list of sentences from self.sText
-        #lsSentences:  List of sentences in string form
-        #llSentences:  list of sentences comprised of list of entities
-        #"""
-        #lsSentences = []
-        #llSentences = []
-        #for oSpan in self.loSentences:
-            #sSent = ''.join(self.oDoc[i].string for i in range(oSpan.start, oSpan.end)).strip()
-            #lSent = [self.oDoc[i] for i in range(oSpan.start, oSpan.end)]
-            #lsSentences.append(sSent)
-            #llSentences.append(lSent)
-        #return lsSentences, llSentences
-    
-    #def speech_tags(self, loTokens):
-        #"returns list of speech tags (essentially words) given list of words"
-        #llTags = []
-        #for oToken in loTokens:
-            #llTags.append([oToken.orth_, oToken.pos_])
-        #return llTags
-    
-    
-
-    #def get_entities(self, oText):
-        #"""returns list of [entities + entity labels] for each word that is an entitiy.  
-        #Returns type Span
-        #oSpan.root = type(Token)"""
-        #loEnts = list(oText.ents)
-        #lsLabels = [o.label_ for o in loEnts]
-        #llEnts = [[loEnts[i].orth_, lsLabels[i]] for i in range(len(lsLabels)) ]
-        #return llEnts
-    
-    
-    
-    
-    
-    #def get_keywords(self, iKW, sType):
-        #"""get keywords from the given labelled entities
-        #sType is either 'speech' or 'entity'
-        #"""
-        ##get most common noun
-        ##TODO totally refactor
-        #llTags = self.speech_tags(self.loTokens)
-        #lNouns = []
-        #for i in range(len(llTags)):
-            #if llTags[i][1] == 'NOUN':
-                #lNouns.append(llTags[i][0].strip())
-        #llUniqueNouns = sorted(self.remove_similar(lNouns), key = lambda t: t[1], reverse=True)
-        #lsUniqueNouns = [l[0] for l in llUniqueNouns]
-        
-        #def get_top_phrases(lsPhrases, iKW):
-            #"lsPhrases is nouns or entities, iKW number of keywords"
-            #lsKeywords = []
-            #for i in range(len(lsUniqueNouns)):
-                ##prevent repetition of constituent nouns
-                #for sKeyword in lsKeywords:
-                    #if lsUniqueNouns[i] in sKeyword:
-                        #i += 1
-                #sNoun = lsUniqueNouns[i]
-                #for sPhrase in lsPhrases:
-                    #if sNoun in sPhrase and sPhrase not in lsKeywords:  #prevent repetition of keyword phrases
-                        #lsKeywords.append(sPhrase)
-                        #break
-                
-                #if len(lsKeywords) == iKW:
-                    #break
-            #return lsKeywords
-                
-                
-        ##gets top of every type of speech noun
-        #if sType == 'speech':
-            ##get the top 3 noun phrases that contain the most common unique nouns
-            #llNounPhrases = self.speech_tag_elements(llTags, 'NOUN')
-            #lsNounPhrases = [l[0] for l in sorted(self.remove_similar(llNounPhrases), key = lambda t: t[1], reverse=True)]
-            #lsKeywords = get_top_phrases(lsNounPhrases, iKW)
-            
-        ##gets top of every type of entity
-        #elif sType == 'entity':
-            #llEnts = self.get_entities(self.oDoc)
-            #lsEnts = [l[0] for l in llEnts]
-            #lsKeywords = get_top_phrases(lsEnts, iKW)
-            
-        #return lsKeywords
-
-    
-
 
 
 
