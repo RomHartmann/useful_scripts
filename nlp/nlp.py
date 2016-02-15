@@ -2,21 +2,31 @@
 
 def run():
     import os
-    sHerePath = os.getcwd()
-    sPath = "{}/news_sample2.txt".format(sHerePath)
-    
     from spacy.en import English
     oNlp = English()
+    
+    
+    sHerePath = os.getcwd()
+    sPath = "{}/news_sample2.txt".format(sHerePath)
     oS = Sirakis(sPath, oNlp)
 
     print(sPath)
     print(oS.keywords())
+    
+    
+    sPath2 = "{}/sport_sample.txt".format(sHerePath)
+    oS2 = Sirakis(sPath2, oNlp)
 
-    #lsEntKeywords = oS.get_keywords(3, 'entity')
-    #lsSpKeywords = oS.get_keywords(3, 'speech')
-    #print("-------", sPath)
-    #print('entity keywords:  ', lsEntKeywords)
-    #print('parts of speech keywords', lsSpKeywords)
+    print(sPath2)
+    print(oS2.keywords())
+    
+    
+    
+    sPath3 = "{}/fin_sample.txt".format(sHerePath)
+    oS3 = Sirakis(sPath3, oNlp)
+
+    print(sPath3)
+    print(oS3.keywords())
 
 
     
@@ -135,14 +145,21 @@ class Sirakis:
         return findSVOs(self.oDoc)
     
     
-    def get_similar_words(self, oToken, iMin=0, iMax=20):
+    def get_similar_words(self, oToken, iMin=0, iMax=6, loDict=None):
         "get similar words by word vectors.  iMin/ iMax are indeces for the segment of most similar words"
-        from numpy import dot
+        import numpy as np
+        if type(oToken) == np.ndarray:
+            aVect = oToken
+        else:
+            aVect = oToken.vector
+        if loDict == None:
+            loDict = self.loAllWords
+            
         # token vectors already normalized, hence just dot product
-        loAllWordsSorted = sorted(self.loAllWords, key=lambda oW: dot(oW.vector, oToken.vector), reverse=True)
-        lsSimilar = [o.lower_ for o in loAllWordsSorted[iMin:iMax]]
+        loAllWordsSorted = sorted(loDict, key=lambda oW: np.dot(oW.vector, aVect), reverse=True)
+        lsSimilar = [o.lower_ for o in loAllWordsSorted]
         
-        lsUniqueSimilar = self.uniquify(lsSimilar)
+        lsUniqueSimilar = self.uniquify(lsSimilar)[iMin:iMax]
         
         return lsUniqueSimilar
     
@@ -180,165 +197,237 @@ class Sirakis:
         """
         
         
-#---get important noun phrases
-dTokens = {}
-for o in self.loTokens:
-    dTokens[o.lemma_] = o
-
-loTokensCleaned = [o for o in self.loTokens if u'\u2019' not in o.lemma_ and u'u\201d' not in o.lemma_]
-loTokens = [o for o in loTokensCleaned if o.pos_ != u'SPACE']
-
-lsNounPhrases = oS.get_noun_phrases(loTokensCleaned)
-
-lsImportantNouns = []
-for sNoun in lsNounPhrases:
-    try:
-        oNoun = dTokens[sNoun]
-        if oNoun.ent_type_ == u'GPE' or oNoun.ent_type_ == u'PERSON' or oNoun.ent_type_ == u'ORG':
-            lsImportantNouns.append(oNoun.lemma_)
-    except KeyError:
-        lsImportantNouns.append(sNoun)
-
-
-lsUniqueNouns = self.uniquify(lsNounPhrases, True)
-#lsSimilarNouns = self.remove_similar(lsNounPhrases)
-loUniqueNouns = [dTokens[s[0]] for s in lsUniqueNouns if s[0] in dTokens.keys()]
-#loSimilarNouns = [dTokens[s[0]] for s in lsSimilarNouns if s[0] in dTokens.keys()]
-lsUniqueImportantNouns = self.uniquify(lsImportantNouns, True)
-#lsSimilarImportantNouns = self.remove_similar(lsImportantNouns)
-#---
-
-#---get top entities of each relevant kind
-dEnts = {}
-for o in self.loEntities:
-    dEnts[o.lemma_] = o
-
-lsEntities = [o.lemma_ for o in self.loEntities if o.label_ == u'GPE' or o.label_ == u'PERSON' or o.label_ == u'ORG']
-
-lsUniqueEntities = self.uniquify(lsEntities, True)
-#ltSimilarEntities = self.remove_similar(lsEntities)
-loSimilarEnts = [dEnts[s[0]] for s in lsUniqueEntities]
-
-oTopPlaceEnt = None
-for oEnt in loSimilarEnts:
-    if oEnt.label_ == u'GPE':
-        oTopPlaceEnt = oEnt
-        break
-
-oTopPersonEnt = None
-for oEnt in loSimilarEnts:
-    if oEnt.label_ == u'PERSON':
-        oTopPersonEnt = oEnt
-        break
-
-oTopOrgEnt = None
-for oEnt in loSimilarEnts:
-    if oEnt.label_ == u'ORG':
-        oTopOrgEnt = oEnt
-        break
-
-lsEntKeywords = [oTopPlaceEnt, oTopPersonEnt, oTopOrgEnt]
-#-----
-
-
-#unknown items
-loUnknown = [o for o in loNouns if norm(o.vector)==0]
-#---
-
-
-
-#get nouns most similar/orthogonal to each other
-loNouns = [o for o in loTokensCleaned if o.pos_ == u'NOUN']
-dSimilar = {}
-dDifferent = {}
-dNounCorrelation = {}
-
-for oNoun in loNouns:
-    from numpy import dot
-    loCorrelationWords = sorted(loNouns, key=lambda oW: dot(oW.vector, oNoun.vector), reverse=True)
-    lsSimilar = [o.lower_ for o in loCorrelationWords[1:4]]
-    lsDifferent = [o.lower_ for o in loCorrelationWords[-3::]]
-    
-    lsUniqueSimilar = self.uniquify(lsSimilar)
-    lsUniqueDifferent = self.uniquify(lsDifferent)
-    
-    dSimilar[oNoun.lemma_] = lsUniqueSimilar
-    dDifferent[oNoun.lemma_] = lsUniqueDifferent
-    
-    
-    dNounCorrelation[oNoun.lemma_] = {}
-    dNounCorrelation[oNoun.lemma_][u'similar'] = lsUniqueSimilar
-    dNounCorrelation[oNoun.lemma_][u'different'] = lsUniqueDifferent
-
-#---
-
-
-
-#get highest dot product list
-import numpy as np
-dCorr = {}
-for oNoun in loNouns:
-    dCorr[oNoun.lemma_] = 0
-    for oNoun2 in loNouns:
-        dCorr[oNoun.lemma_] += np.dot(oNoun.vector, oNoun2.vector)
-
-ltHighestCorr = sorted(zip(dCorr.keys(), dCorr.values()), key=lambda t: t[1], reverse=True)
-
-#---
-
-
-#get main element from cluster with cos(theta) > 0.5 (60 degrees)
-import numpy as np
-dClusters = {}
-for oNoun in loNouns:
-    dClusters[oNoun.lemma_] = []
-    for oNoun2 in loNouns:
-        if np.dot(oNoun.vector, oNoun2.vector) > 0.5:
-            dClusters[oNoun.lemma_].append(oNoun2.lemma_)
-
-
-ltAllClusters = sorted(zip(dClusters.keys(), dClusters.values()), key=lambda t: len(t[1]), reverse=True)
-
-#TODO cluters are not supersets yet - do recursively
-
-def add_children(sCluster, dGlobalClusters):
-    try:
-        dGlobalClusters[sCluster] += dClusters[sCluster]
-    except KeyError:
-        dGlobalClusters[sCluster] = dClusters[sCluster]
-    
-    for sKey in dClusters[sCluster]:
-        add_children(sKey, dGlobalClusters)
-    
-    return dGlobalClusters
-
-dGlobalClusters = {}
-add_children(dClusters.keys()[0], dGlobalClusters)
-
-
-
-#dGlobalClusters = {}
-#for sKey in dClusters.keys():
-    #dGlobalClusters[sKey] = []
-    #for s in dClusters[sKey]:
-        #dGlobalClusters[sKey] += dClusters[s]
-    #dGlobalClusters[sKey] = list(set(dGlobalClusters[sKey]))
-
-llGlobalClusters = []
-for lCluster in dGlobalClusters.values():
-    if lCluster not in llGlobalClusters and len(lCluster)>1:
-        llGlobalClusters.append(lCluster)
-
-
-#---
-
-
-
-
-
-
+        #---get important noun phrases
+        dTokens = {}
+        for o in self.loTokens:
+            dTokens[o.lemma_] = o
         
-        return lsKeywords
+        loTokensCleaned = [o for o in self.loTokens if u'\u2019' not in o.lemma_ and u'u\201d' not in o.lemma_]
+        loTokens = [o for o in loTokensCleaned if o.pos_ != u'SPACE']
+        
+        lsNounPhrases = self.get_noun_phrases(loTokensCleaned)
+        
+        lsImportantNouns = []
+        for sNoun in lsNounPhrases:
+            try:
+                oNoun = dTokens[sNoun]
+                if oNoun.ent_type_ == u'GPE' or oNoun.ent_type_ == u'PERSON' or oNoun.ent_type_ == u'ORG':
+                    lsImportantNouns.append(oNoun.lemma_)
+            except KeyError:
+                lsImportantNouns.append(sNoun)
+        
+        
+        lsUniqueNouns = self.uniquify(lsNounPhrases, True)
+        #lsSimilarNouns = self.remove_similar(lsNounPhrases)
+        loUniqueNouns = [dTokens[s[0]] for s in lsUniqueNouns if s[0] in dTokens.keys()]
+        #loSimilarNouns = [dTokens[s[0]] for s in lsSimilarNouns if s[0] in dTokens.keys()]
+        lsUniqueImportantNouns = self.uniquify(lsImportantNouns, True)
+        #lsSimilarImportantNouns = self.remove_similar(lsImportantNouns)
+        #---
+        
+        #---get top entities of each relevant kind
+        dEnts = {}
+        for o in self.loEntities:
+            dEnts[o.lemma_] = o
+        
+        lsEntities = [o.lemma_ for o in self.loEntities if o.label_ == u'GPE' or o.label_ == u'PERSON' or o.label_ == u'ORG']
+        
+        lsUniqueEntities = self.uniquify(lsEntities, True)
+        #ltSimilarEntities = self.remove_similar(lsEntities)
+        loUniqueEnts = [dEnts[s[0]] for s in lsUniqueEntities]
+        
+        oTopPlaceEnt = None
+        for oEnt in loUniqueEnts:
+            if oEnt.label_ == u'GPE':
+                oTopPlaceEnt = oEnt
+                break
+        
+        oTopPersonEnt = None
+        for oEnt in loUniqueEnts:
+            if oEnt.label_ == u'PERSON':
+                oTopPersonEnt = oEnt
+                break
+        
+        oTopOrgEnt = None
+        for oEnt in loUniqueEnts:
+            if oEnt.label_ == u'ORG':
+                oTopOrgEnt = oEnt
+                break
+        
+        lsEntKeywords = [oTopPlaceEnt, oTopPersonEnt, oTopOrgEnt]
+        #-----
+        
+        
+        loNouns = [o for o in loTokensCleaned if 'NN' in o.tag_]     #NOTE or o.pos_ == u'NOUN' ?
+        
+        
+        #unknown items
+        from numpy.linalg import norm
+        loUnknown = [o for o in loNouns if norm(o.vector)==0]
+        #---
+        
+        
+        
+        #get nouns most similar/orthogonal to each other
+        
+        dSimilar = {}
+        dDifferent = {}
+        dNounCorrelation = {}
+        
+        for oNoun in loNouns:
+            from numpy import dot
+            loCorrelationWords = sorted(loNouns, key=lambda oW: dot(oW.vector, oNoun.vector), reverse=True)
+            lsSimilar = [o.lower_ for o in loCorrelationWords[1:4]]
+            lsDifferent = [o.lower_ for o in loCorrelationWords[-3::]]
+            
+            lsUniqueSimilar = self.uniquify(lsSimilar)
+            lsUniqueDifferent = self.uniquify(lsDifferent)
+            
+            dSimilar[oNoun.lemma_] = lsUniqueSimilar
+            dDifferent[oNoun.lemma_] = lsUniqueDifferent
+            
+            
+            dNounCorrelation[oNoun.lemma_] = {}
+            dNounCorrelation[oNoun.lemma_][u'similar'] = lsUniqueSimilar
+            dNounCorrelation[oNoun.lemma_][u'different'] = lsUniqueDifferent
+        
+        #---
+        
+        
+        
+        #get highest dot product list
+        import numpy as np
+        dCorr = {}
+        for oNoun in loNouns:
+            dCorr[oNoun.lemma_] = 0
+            for oNoun2 in loNouns:
+                dCorr[oNoun.lemma_] += np.dot(oNoun.vector, oNoun2.vector)
+        
+        ltHighestCorr = sorted(zip(dCorr.keys(), dCorr.values()), key=lambda t: t[1], reverse=True)
+        loHighestCorr = [dTokens[t[0]] for t in ltHighestCorr]
+        oHighestCorr = loHighestCorr[0]
+        #---
+        
+        
+        #gets all local clusters
+        def get_main_cluster_heads(rCorr=0.6):
+            "get the heads for clusters with correlation rCorr > cos(theta)   (between 0 and 1)"
+            import numpy as np
+            dClusters = {}
+            for oNoun in loNouns:
+                dClusters[oNoun.lemma_] = []
+                for oNoun2 in loNouns:
+                    if np.dot(oNoun.vector, oNoun2.vector) > rCorr:
+                        dClusters[oNoun.lemma_].append(oNoun2.lemma_)
+            
+            
+            ltAllClusters = sorted(zip(dClusters.keys(), dClusters.values()), key=lambda t: len(t[1]), reverse=True)
+            
+            
+            def add_children(sCluster, lAdded, sMember):
+                "recursive function to create the global clusters"
+                if lAdded == []:
+                    dGlobalClusters[sCluster] = list(dClusters[sCluster])
+                    lAdded.append(sCluster)
+                else:
+                    for s in dClusters[sMember]:
+                        dGlobalClusters[sCluster].append(s)
+                    dGlobalClusters[sCluster] = list(set(dGlobalClusters[sCluster]))
+                    lAdded.append(sMember)
+                
+                for sMember in dGlobalClusters[sCluster]:
+                    if sMember not in lAdded:
+                        add_children(sCluster, lAdded, sMember)
+                
+            
+            dGlobalClusters = {}
+            for sCluster in dClusters.keys():
+                dGlobalClusters[sCluster] = []
+                add_children(sCluster, [], None)
+            
+            
+            #create unique cluster sets
+            llsGlobalClusters = []
+            for lCluster in dGlobalClusters.values():
+                lCluster = sorted(list(set(lCluster)))
+                if lCluster not in llsGlobalClusters and len(lCluster)>1:
+                    llsGlobalClusters.append(lCluster)
+            
+            
+            lloGlobalClusters = [ [dTokens[s] for s in l] for l in llsGlobalClusters ]
+            
+            loMainTokens = []
+            import numpy as np
+            for loClusterSet in lloGlobalClusters:
+                ltCorrelations = []
+                for oComponent in loClusterSet:
+                    if oComponent.ent_type_ == u'DATE' or oComponent.ent_type_ == u'TIME':
+                        continue
+                    iSum = 0
+                    for o2 in loClusterSet:
+                        iSum += np.dot(oComponent.vector, o2.vector)
+                    ltCorrelations.append((oComponent, iSum))
+                
+                if len(ltCorrelations) == 0:
+                    continue
+                elif len(ltCorrelations) == 2:
+                    loMainTokens.append([t[0] for t in ltCorrelations])
+                else:
+                    oMainToken = sorted(ltCorrelations, key=lambda t: t[1], reverse = True)[0][0]
+                    loMainTokens.append(oMainToken)
+            
+            return loMainTokens
+        
+        
+        loMainTokens = get_main_cluster_heads()
+        #----
+        
+        
+        
+        #unit vector of average of all noun tokens?
+        aAvg = np.zeros(np.shape(loNouns[0].vector))
+        for oNoun in loNouns:
+            aAvg += oNoun.vector
+            aAvgVect = aAvg/np.linalg.norm(aAvg)
+        
+        #lsAvgSimilarNouns = self.get_similar_words(aAvgVect)    #not very useful
+        lsAvgArticleNouns = self.get_similar_words(aAvgVect, loDict=loNouns)     #much more useful
+        #---
+        
+        
+        
+        
+        #PCA
+        from sklearn.decomposition import PCA
+        import numpy as np
+        iIntComponents = 100
+        pca = PCA(n_components = iIntComponents)
+        lAllArrays = [o.vector for o in loNouns]
+        aAllArrays = np.array(lAllArrays)
+        pca.fit(aAllArrays)
+        
+        #automatically find number of components by finding a sharp drop
+        aVariance = pca.explained_variance_ratio_
+        for i in range(len(aVariance)-1):
+            if aVariance[i]/aVariance[i+1]>5:
+                break
+        
+        iComponents = i+1
+        pca = PCA(n_components = iComponents)
+        lAllArrays = [o.vector for o in loNouns]
+        aAllArrays = np.array(lAllArrays)
+        pca.fit(aAllArrays)
+        
+        llsPcaComponents = []
+        for i in range(iComponents):
+            llsPcaComponents.append(self.get_similar_words(pca.components_[i], loDict=loNouns))
+        
+        
+        #---
+        
+        
+        
+        return lsUniqueNouns, lsUniqueImportantNouns, lsUniqueEntities, lsEntKeywords, loUnknown, loHighestCorr, loMainTokens, lsAvgArticleNouns, llsPcaComponents
     
 
 
