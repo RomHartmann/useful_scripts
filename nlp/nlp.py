@@ -1,33 +1,21 @@
 
 
-def run():
+def run(sFile, bLoc):
     import os
     from spacy.en import English
     oNlp = English()
-    
-    
+
     sHerePath = os.getcwd()
-    sPath = "{}/news_sample2.txt".format(sHerePath)
-    oS = Sirakis(sPath, oNlp)
+    sFile = "economy_sample.txt"
+    sPath = "{}/{}".format(sHerePath, sFile)
+    oS = Sirakis(sPath, oNlp, bLoc)
 
     print(sPath)
-    print(oS.keywords())
+    for lRet in oS.keywords():
+        print lRet
+        print "------------------"
     
     
-    sPath2 = "{}/sport_sample.txt".format(sHerePath)
-    oS2 = Sirakis(sPath2, oNlp)
-
-    print(sPath2)
-    print(oS2.keywords())
-    
-    
-    
-    sPath3 = "{}/fin_sample.txt".format(sHerePath)
-    oS3 = Sirakis(sPath3, oNlp)
-
-    print(sPath3)
-    print(oS3.keywords())
-
 
     
     
@@ -50,7 +38,7 @@ class Sirakis:
             python -m spacy.en.download
             need newest version of numpy
     sPath is the path to the text file containing the article
-    bN24: True if follows News 24 format of having the location as the first element
+    bLoc: True if follows News 24 format of having the location as the first element
     """
     
     #---helper functions
@@ -76,36 +64,10 @@ class Sirakis:
     
     
     
-    #def remove_similar(self, lsOrig):
-        #"take list input and return exact and subset excluded items and their counts"
-        #lsOrig.sort(key=len, reverse=True)
-        
-        ##check if a similar already exists in the new list
-        #def similar_exists(sItem, l):
-            #for s in l:
-                #if sItem in s:
-                    #return s
-            #return False
-        
-        ##only add new to list if it does not alredy exist
-        #dRet = {}
-        #for s in lsOrig:
-            #sInD = similar_exists(s, dRet.keys())
-            #if s not in dRet and not sInD:
-                #dRet[s] = 1
-            #else:
-                #dRet[sInD] += 1
-        
-        #ltRet = [(dRet.keys()[i], dRet.values()[i]) for i in range(len(dRet.keys()))]
-        #ltRet = sorted(ltRet, key = lambda t: t[1], reverse=True)
-        #return ltRet
     
-    
-    
-    
-    def __init__(self, sPath, oNlp, bN24=True):
+    def __init__(self, sPath, oNlp, bLoc=True):
         self.oNlp = oNlp
-        self.get_text(sPath, bN24)
+        self.get_text(sPath, bLoc)
         self.process_text()
         
         self.loTokens       = [o for o in self.oDoc]
@@ -115,14 +77,14 @@ class Sirakis:
     
     
     #---initial processing functions
-    def get_text(self, sPath, bN24):
-        "unicode text from file"
+    def get_text(self, sPath, bLoc):
+        "unicode text from file, bLoc = True if first element is location"
         with open(sPath, 'r') as f:
             sText = f.read()
         sText = unicode(sText, "utf-8")
         
         #extract location from first elements of text
-        if bN24:
+        if bLoc:
             sLocation = sText.split(u' - ')[0]
             sText = u' - '.join(sText.split(u' - ')[1::])
         else:
@@ -202,7 +164,8 @@ class Sirakis:
         for o in self.loTokens:
             dTokens[o.lemma_] = o
         
-        loTokensCleaned = [o for o in self.loTokens if u'\u2019' not in o.lemma_ and u'u\201d' not in o.lemma_]
+        import unicodedata
+        loTokensCleaned = [o for o in self.loTokens if o.lemma_.isalpha()]
         loTokens = [o for o in loTokensCleaned if o.pos_ != u'SPACE']
         
         lsNounPhrases = self.get_noun_phrases(loTokensCleaned)
@@ -391,7 +354,7 @@ class Sirakis:
             aAvgVect = aAvg/np.linalg.norm(aAvg)
         
         #lsAvgSimilarNouns = self.get_similar_words(aAvgVect)    #not very useful
-        lsAvgArticleNouns = self.get_similar_words(aAvgVect, loDict=loNouns)     #much more useful
+        lsAvgArticleNouns = self.get_similar_words(aAvgVect, loDict=loNouns, iMax=3)     #much more useful
         #---
         
         
@@ -427,17 +390,34 @@ class Sirakis:
         
         
         
-        return lsUniqueNouns, lsUniqueImportantNouns, lsUniqueEntities, lsEntKeywords, loUnknown, loHighestCorr, loMainTokens, lsAvgArticleNouns, llsPcaComponents
-    
+        return [lsUniqueNouns, lsUniqueImportantNouns, lsUniqueEntities, lsEntKeywords, loUnknown, loHighestCorr, loMainTokens, lsAvgArticleNouns, llsPcaComponents]
 
 
 
 
-    
+
+
 
 
 
 
 if __name__ == '__main__':
     
-    run()
+    import argparse
+    oParser = argparse.ArgumentParser()
+    oParser.add_argument(
+        '-f', '--file',
+        type=str,
+        help="enter file name of unicode text file"
+    )
+    oParser.add_argument(
+        '-l', '--haslocation',
+        action="store_true",
+        help="include if the article has the location as its first element"
+    )
+    oArgs = oParser.parse_args()
+    sFile = oArgs.file
+    bLoc = oArgs.haslocation
+    
+    
+    run(sFile, bLoc)
