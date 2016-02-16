@@ -157,7 +157,7 @@ class Sirakis:
     
     
     
-    def get_cluster_heads(self, loNouns, bTokens=True, rCorr=0.6):
+    def get_cluster_heads(self, loItems, bTokens=True, rCorr=0.6):
         "get the heads for clusters with correlation rCorr > cos(theta)   (between 0 and 1)"
         import numpy as np
         
@@ -168,9 +168,9 @@ class Sirakis:
         
         #create local clusters with correlation of more than 0.6
         dClusters = {}
-        for oNoun in loNouns:
+        for oNoun in loItems:
             dClusters[oNoun.lemma_] = []
-            for oNoun2 in loNouns:
+            for oNoun2 in loItems:
                 if np.dot(oNoun.vector, oNoun2.vector) > rCorr:
                     dClusters[oNoun.lemma_].append(oNoun2.lemma_)
         
@@ -235,7 +235,7 @@ class Sirakis:
     
     
     
-    def keywords(self):
+    def keywords(self, iKW = 5):
         """
         Returns list with most common noun entity supersets
         """
@@ -254,11 +254,51 @@ class Sirakis:
         loAvgArticleNouns = [self.dTokens[s] for s in lsAvgArticleNouns]
         #---
         
-        lsKeywords = []
+        #which keywords have the highest overall correlation
+        loFlatClusterTokens = []
+        for i in range(len(loClusterTokens)):
+            if type(loClusterTokens[i]) == list:
+                for oToken in loClusterTokens[i]:
+                    loFlatClusterTokens.append(oToken)
+            else:
+                oToken = loClusterTokens[i]
+                loFlatClusterTokens.append(oToken)
         
         
+        #get keywords by looking for most cross correlating in iterations
+        def most_corr(loTokens):
+            "get sorted list of most mutually correlating token"
+            ltKeywords = []
+            for o1 in loTokens:
+                iSum = 0
+                for o2 in loTokens:
+                    if o1.lemma_ != o2.lemma_:
+                        iSum += np.dot(o1.vector, o2.vector)
+                ltKeywords.append((o1, iSum))
+            
+            ltKeywords.sort(key=lambda t: t[1], reverse=True)
+            return ltKeywords
         
-        return [lsKeywords, loAvgArticleNouns, loClusterTokens]
+        
+        #remove most correlating token as keyword and look for new most correlating
+        ltKeywords = most_corr(loFlatClusterTokens)
+        loKeywords = []
+        for i in range(iKW):
+            loKeywords.append(ltKeywords.pop(0)[0])
+            loTokens = [t[0] for t in ltKeywords]
+            ltKeywords = most_corr(loTokens)
+            
+        
+        lsKeywords = [o.lemma_ for o in loKeywords]
+        if self.sLocation.lower() not in lsKeywords:
+            del lsKeywords[-1]
+            lsKeywords.append(self.sLocation)
+        
+        return {
+            'lsKeywords': lsKeywords, 
+            'loClusterTokens': loClusterTokens, 
+            'loAvgArticleNouns': loAvgArticleNouns
+        }
     
     
     def summary(self):
@@ -301,7 +341,7 @@ class Sirakis:
         #---
         
         #average sentences 
-        loAvgArticleNouns = self.keywords()[1]
+        loAvgArticleNouns = self.keywords()['loAvgArticleNouns']
         lsSents = []
         lUsed = []
         for oS in self.loSentences:
@@ -329,16 +369,15 @@ from spacy.en import English
 oNlp = English()
 
 sHerePath = os.getcwd()
-sFile="news_sample.txt"
+sFile="fin_sample.txt"
 sPath = "{}/{}".format(sHerePath, sFile)
 oS = Sirakis(sPath, oNlp, True)
 
-oS.summary()
 
 print(sPath)
-for lRet in oS.keywords():
-    print lRet
-    print "------------------"
+oS.keywords()['lsKeywords']
+oS.summary()
+
 
 """
 
