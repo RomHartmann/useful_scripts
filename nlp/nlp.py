@@ -75,7 +75,10 @@ class Sirakis:
         self.loAllWords     = [o for o in self.oNlp.vocab if o.has_vector]
         
         self.loTokensCleaned= [o for o in self.loTokens if o.lemma_.isalpha()]
-        self.loNouns        = [o for o in self.loTokensCleaned if 'NN' in o.tag_]     #or o.pos_ == u'NOUN' ?
+        self.loNouns        = [o for o in self.loTokensCleaned if 'NN' in o.tag_]     #or o.pos_ == u'NOUN'
+        
+        self.dTokens        = dict(zip( [o.lemma_ for o in self.loTokens], self.loTokens ))
+        self.dSentences     = dict(zip( [o.lemma_ for o in self.loSentences], self.loSentences ))
     
     
     #---initial processing functions
@@ -121,7 +124,7 @@ class Sirakis:
             
         # token vectors already normalized, hence just dot product
         loAllWordsSorted = sorted(loDict, key=lambda oW: np.dot(oW.vector, aVect), reverse=True)
-        lsSimilar = [o.lower_ for o in loAllWordsSorted]
+        lsSimilar = [o.lemma_ for o in loAllWordsSorted]
         
         lsUniqueSimilar = self.uniquify(lsSimilar)[iMin:iMax]
         
@@ -136,7 +139,6 @@ class Sirakis:
                 return oLex.vector
         import numpy as np
         return (np.zeros(np.shape(self.loAllWords[1].vector))).astype('float32')
-    
     
     
     #---processing functions
@@ -155,13 +157,14 @@ class Sirakis:
     
     
     
-    def get_token_cluster_heads(self, loNouns, rCorr=0.6):
+    def get_cluster_heads(self, loNouns, bTokens=True, rCorr=0.6):
         "get the heads for clusters with correlation rCorr > cos(theta)   (between 0 and 1)"
         import numpy as np
         
-        dTokens = {}
-        for o in self.loTokens:
-            dTokens[o.lemma_] = o
+        if bTokens:
+            dToObjects = self.dTokens
+        else:
+            dToObjects = self.dSentences
         
         #create local clusters with correlation of more than 0.6
         dClusters = {}
@@ -206,14 +209,14 @@ class Sirakis:
                 llsGlobalClusters.append(lCluster)
         
         
-        lloGlobalClusters = [ [dTokens[s] for s in l] for l in llsGlobalClusters ]
+        lloGlobalClusters = [ [dToObjects[s] for s in l] for l in llsGlobalClusters ]
         
         #calculate main component of global cluster set
         loMainTokens = []
         for loClusterSet in lloGlobalClusters:
             ltCorrelations = []
             for oComponent in loClusterSet:
-                if oComponent.ent_type_ == u'DATE' or oComponent.ent_type_ == u'TIME':
+                if bTokens and (oComponent.ent_type_ == u'DATE' or oComponent.ent_type_ == u'TIME'):
                     continue
                 iSum = 0
                 for o2 in loClusterSet:
@@ -237,7 +240,7 @@ class Sirakis:
         Returns list with most common noun entity supersets
         """
         
-        loMainTokens = self.get_token_cluster_heads(self.loNouns)
+        loClusterTokens = self.get_cluster_heads(self.loNouns)
         
         #unit vector of average of all noun tokens
         import numpy as np
@@ -248,15 +251,20 @@ class Sirakis:
         
         #lsAvgSimilarNouns = self.get_similar_words(aAvgVect)    #not very useful
         lsAvgArticleNouns = self.get_similar_words(aAvgVect, loDict=self.loNouns, iMax=6)     #much more useful
+        loAvgArticleNouns = [self.dTokens[s] for s in lsAvgArticleNouns]
         #---
         
+        lsKeywords = []
         
         
-        return [loMainTokens, lsAvgArticleNouns]
+        
+        return [lsKeywords, loAvgArticleNouns, loClusterTokens]
     
     
     def summary(self):
         "create a summary of the text"
+        
+        loClusterSents = self.get_cluster_heads(self.loSentences, False, 0.3)
         
         #PCA
         from sklearn.decomposition import PCA
@@ -292,15 +300,48 @@ class Sirakis:
         
         #---
         
-        return [llsPcaComponents, ltSubjects]
+        #average sentences 
+        loAvgArticleNouns = self.keywords()[1]
+        lsSents = []
+        lUsed = []
+        for oS in self.loSentences:
+            for oK in loAvgArticleNouns:
+                if oK.lemma_ in [o.lemma_ for o in oS] and oK.lemma_ not in lUsed and oS.orth_ not in lsSents:
+                    lsSents.append(oS.orth_)
+                    lUsed.append(oK.lemma_)
+        
+        #---
+        
+        
+        
+        
+        lMightBeUseful = [loClusterSents, llsPcaComponents, ltSubjects]
+        
+        return lsSents
         
 
 
 
+"""
 
+import os
+from spacy.en import English
+oNlp = English()
 
+sHerePath = os.getcwd()
+sFile="news_sample.txt"
+sPath = "{}/{}".format(sHerePath, sFile)
+oS = Sirakis(sPath, oNlp, True)
 
-    
+oS.summary()
+
+print(sPath)
+for lRet in oS.keywords():
+    print lRet
+    print "------------------"
+
+"""
+
 
 
 
