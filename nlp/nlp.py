@@ -1,24 +1,18 @@
 
 
-def run(sFile, bLoc):
+def run(sFile):
     import os
     from spacy.en import English
-    oNlp = English()
+    oNlp = English()    #takes a lot of computaion; do once.
 
     sHerePath = os.getcwd()
-    sPath = "{}/{}".format(sHerePath, sFile)
-    oS = Sirakis(sPath, oNlp, bLoc)
+    sPath = "{}/articles/{}".format(sHerePath, sFile)
+    oS = Sirakis(sPath, oNlp)
 
-    print(sPath)
-    for lRet in oS.keywords():
-        print lRet
-        print "------------------"
+    print(oS.keywords())
     
-    
+    print(oS.summary())
 
-    
-    
-    
 
 
 
@@ -37,15 +31,14 @@ class Sirakis:
             python -m spacy.en.download
             need newest version of numpy
     sPath is the path to the text file containing the article
-    bLoc: True if follows News 24 format of having the location as the first element
     """
     
     #---helper functions
-    def uniquify(self, l, bCount=False):
+    def uniquify(self, ls, bCount=False):
         "create ordered list of unique strings.  Count occurences if bCount is True and sort by highest"
         if bCount:
             dRet = {}
-            for s in l:
+            for s in ls:
                 if s not in dRet.keys():
                     dRet[s] = 1
                 else:
@@ -56,7 +49,7 @@ class Sirakis:
             return lRet
         else:
             lRet = []
-            for s in l:
+            for s in ls:
                 if s not in lRet:
                     lRet.append(s)
             return lRet
@@ -64,32 +57,33 @@ class Sirakis:
     
     
     
-    def __init__(self, sPath, oNlp, bLoc=True):
+    def __init__(self, sPath, oNlp):
         self.oNlp = oNlp
-        self.get_text(sPath, bLoc)
-        self.process_text()
+        self.get_text(sPath)
+        
+        self.oDoc           = self.oNlp(self.sText)
         
         self.loTokens       = [o for o in self.oDoc]
         self.loEntities     = [o for o in self.oDoc.ents]
         self.loSentences    = [o for o in self.oDoc.sents]
         self.loAllWords     = [o for o in self.oNlp.vocab if o.has_vector]
         
-        self.loTokensCleaned= [o for o in self.loTokens if o.lemma_.isalpha()]
-        self.loNouns        = [o for o in self.loTokensCleaned if 'NN' in o.tag_]     #or o.pos_ == u'NOUN'
+        self.loTokensAscii  = [o for o in self.loTokens if o.is_ascii]
+        self.loNouns        = [o for o in self.loTokensAscii if 'NN' in o.tag_]     #or o.pos_ == u'NOUN'
         
         self.dTokens        = dict(zip( [o.lemma_ for o in self.loTokens], self.loTokens ))
         self.dSentences     = dict(zip( [o.lemma_ for o in self.loSentences], self.loSentences ))
     
     
     #---initial processing functions
-    def get_text(self, sPath, bLoc):
-        "unicode text from file, bLoc = True if first element is location"
+    def get_text(self, sPath):
+        "unicode text from file"
         with open(sPath, 'r') as f:
             sText = f.read()
         sText = unicode(sText, "utf-8")
         
-        #extract location from first elements of text
-        if bLoc:
+        #extract location from first elements of text if the dash exists in the first 50 characters.
+        if u' - ' in sText[0:50]:
             sLocation = sText.split(u' - ')[0]
             sText = u' - '.join(sText.split(u' - ')[1::])
         else:
@@ -97,12 +91,6 @@ class Sirakis:
         
         self.sText = sText
         self.sLocation = sLocation.lower().strip()
-    
-    
-    def process_text(self):
-        "loads nlp packages and inserts text.  Returns nlp object"
-        oDoc = self.oNlp(self.sText)
-        self.oDoc = oDoc
     
     
     #---base data functions
@@ -124,7 +112,11 @@ class Sirakis:
             
         # token vectors already normalized, hence just dot product
         loAllWordsSorted = sorted(loDict, key=lambda oW: np.dot(oW.vector, aVect), reverse=True)
-        lsSimilar = [o.lemma_ for o in loAllWordsSorted]
+        #tokens have lemma, lexemes not
+        try:
+            lsSimilar = [o.lemma_ for o in loAllWordsSorted]
+        except AttributeError:
+            lsSimilar = [o.lower_ for o in loAllWordsSorted]
         
         lsUniqueSimilar = self.uniquify(lsSimilar)[iMin:iMax]
         
@@ -240,7 +232,7 @@ class Sirakis:
         Returns list with most common noun entity supersets
         """
         
-        loClusterTokens = self.get_cluster_heads(self.loNouns)
+        lClusterTokens = self.get_cluster_heads(self.loNouns)
         
         #unit vector of average of all noun tokens
         import numpy as np
@@ -249,19 +241,19 @@ class Sirakis:
             aAvg += oNoun.vector
             aAvgVect = aAvg/np.linalg.norm(aAvg)
         
-        #lsAvgSimilarNouns = self.get_similar_words(aAvgVect)    #not very useful
-        lsAvgArticleNouns = self.get_similar_words(aAvgVect, loDict=self.loNouns, iMax=6)     #much more useful
+        lsAvgArticleNouns = self.get_similar_words(aAvgVect, loDict=self.loNouns, iMax=iKW)     #much more useful
         loAvgArticleNouns = [self.dTokens[s] for s in lsAvgArticleNouns]
         #---
         
+        
         #which keywords have the highest overall correlation
         loFlatClusterTokens = []
-        for i in range(len(loClusterTokens)):
-            if type(loClusterTokens[i]) == list:
-                for oToken in loClusterTokens[i]:
+        for i in range(len(lClusterTokens)):
+            if type(lClusterTokens[i]) == list:
+                for oToken in lClusterTokens[i]:
                     loFlatClusterTokens.append(oToken)
             else:
-                oToken = loClusterTokens[i]
+                oToken = lClusterTokens[i]
                 loFlatClusterTokens.append(oToken)
         
         
@@ -282,26 +274,37 @@ class Sirakis:
         
         #remove most correlating token as keyword and look for new most correlating
         ltKeywords = most_corr(loFlatClusterTokens)
-        loKeywords = []
+        loCorrKeywords = []
         for i in range(iKW):
-            loKeywords.append(ltKeywords.pop(0)[0])
-            loTokens = [t[0] for t in ltKeywords]
-            ltKeywords = most_corr(loTokens)
-            
+            if len(ltKeywords)>0:
+                loCorrKeywords.append(ltKeywords.pop(0)[0])
+                loTokens = [t[0] for t in ltKeywords]
+                ltKeywords = most_corr(loTokens)
         
-        lsKeywords = [o.lemma_ for o in loKeywords]
-        if self.sLocation.lower() not in lsKeywords:
-            del lsKeywords[-1]
-            lsKeywords.append(self.sLocation)
+        
+        lsCorrKeywords = [o.lemma_ for o in loCorrKeywords]
+        if self.sLocation.lower() not in lsCorrKeywords:
+            del lsCorrKeywords[-1] = self.sLocation
+        
+        
+        ltUniqueNouns = [(self.dTokens[t[0]], t[1]) for t in self.uniquify([o.lemma_ for o in self.loNouns], True)]
+        ltProbNouns = []
+        for t in ltUniqueNouns:
+            ltProbNouns.append((t[0], (t[1]*t[0].prob)))
+        
+        ltProbNouns.sort(key=lambda t:t[1])
+        loProbKeywords = [t[0] for t in ltProbNouns][0:iKW]
+        
         
         return {
-            'lsKeywords': lsKeywords, 
-            'loClusterTokens': loClusterTokens, 
-            'loAvgArticleNouns': loAvgArticleNouns
+            'lsCorrKeywords': lsCorrKeywords, 
+            'lClusterTokens': lClusterTokens, 
+            'loAvgArticleNouns': loAvgArticleNouns,
+            'loProbKeywords': loProbKeywords
         }
     
     
-    def summary(self):
+    def summary(self, iNrSentences = 5):
         "create a summary of the text"
         
         loClusterSents = self.get_cluster_heads(self.loSentences, False, 0.3)
@@ -341,7 +344,7 @@ class Sirakis:
         #---
         
         #average sentences 
-        loAvgArticleNouns = self.keywords()['loAvgArticleNouns']
+        loAvgArticleNouns = self.keywords(iKW = iNrSentences)['loAvgArticleNouns']
         lsSents = []
         lUsed = []
         for oS in self.loSentences:
@@ -358,28 +361,54 @@ class Sirakis:
         lMightBeUseful = [loClusterSents, llsPcaComponents, ltSubjects]
         
         return lsSents
-        
 
 
 
-"""
+
+
 
 import os
 from spacy.en import English
 oNlp = English()
 
 sHerePath = os.getcwd()
-sFile="fin_sample.txt"
-sPath = "{}/{}".format(sHerePath, sFile)
-oS = Sirakis(sPath, oNlp, True)
 
 
-print(sPath)
-oS.keywords()['lsKeywords']
-oS.summary()
+def test(sFile):
+    sPath = "{}/articles/{}".format(sHerePath, sFile)
+    oS = Sirakis(sPath, oNlp)
+    dKW = oS.keywords()
+    print "==="
+    print(sPath)
+    print 'loAvgArticleNouns:   ', dKW['loAvgArticleNouns']
+    print 'lsCorrKeywords:   ', dKW['lsCorrKeywords'], dKW['lClusterTokens']
+    print 'loProbKeywords:   ', dKW['loProbKeywords']
+    print "---"
+    print(oS.summary())
+    print("\n\n")
 
 
-"""
+test("economy.txt")
+test("economy2.txt")
+test("economy3.txt")
+test("fin.txt")
+test("fin2.txt")
+test("fin3.txt")
+test("fin4.txt")
+test("fin5.txt")
+test("health.txt")
+test("health2.txt")
+test("health3.txt")
+test("news.txt")
+test("news2.txt")
+test("news3.txt")
+test("news4.txt")
+test("news5.txt")
+test("sport.txt")
+test("sport2.txt")
+
+
+
 
 
 
@@ -395,14 +424,8 @@ if __name__ == '__main__':
         type=str,
         help="enter file name of unicode text file"
     )
-    oParser.add_argument(
-        '-l', '--haslocation',
-        action="store_true",
-        help="include if the article has the location as its first element"
-    )
     oArgs = oParser.parse_args()
     sFile = oArgs.file
-    bLoc = oArgs.haslocation
     
     
     run(sFile, bLoc)
