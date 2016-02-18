@@ -9,10 +9,9 @@ def run(sFile):
     sPath = "{}/articles/{}".format(sHerePath, sFile)
     oS = Sirakis(sPath, oNlp)
 
-    print(oS.keywords())
+    print(oS.keywords()['loKeywords'])
     
     print(oS.summary())
-
 
 
 
@@ -256,7 +255,7 @@ class Sirakis:
         
         return {
             'loAvgArticleNouns': loAvgArticleNouns,
-            'loProbKeywords': loProbKeywords
+            'loKeywords': loProbKeywords
         }
     
     
@@ -281,7 +280,7 @@ class Sirakis:
 
 
 
-
+"""
 
 import os
 from spacy.en import English
@@ -302,7 +301,7 @@ def test(sFile):
     print "==="
     print(sPath)
     print 'loAvgArticleNouns:   ', dKW['loAvgArticleNouns']
-    print 'loProbKeywords:   ', dKW['loProbKeywords']
+    print 'loKeywords:   ', dKW['loKeywords']
     print "---"
     print(oS.summary())
     print("\n\n")
@@ -328,7 +327,7 @@ test("sport.txt")
 test("sport2.txt")
 
 
-
+"""
 
 
 
