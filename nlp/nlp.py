@@ -277,7 +277,7 @@ class Sirakis:
     
     
     
-    
+    """
     def other_possibly_useful_shit():
         "just some stuff that is cool, but not useful right now"
         
@@ -326,7 +326,10 @@ class Sirakis:
         if self.sLocation.lower() not in lsCorrKeywords:
             lsCorrKeywords[-1] = self.sLocation
         
-        #---
+        #-------------------------------------------------------------------------------
+        
+        
+        
         
         lUsefulTokenThings = [lsCorrKeywords, ]
         
@@ -369,7 +372,7 @@ class Sirakis:
         #---
         
         lMightBeUseful = [loClusterSents, llsPcaComponents, ltSubjects]
-    
+    """
     
 
 
