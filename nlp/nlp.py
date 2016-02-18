@@ -232,8 +232,6 @@ class Sirakis:
         Returns list with most common noun entity supersets
         """
         
-        lClusterTokens = self.get_cluster_heads(self.loNouns)
-        
         #unit vector of average of all noun tokens
         import numpy as np
         aAvg = np.zeros(np.shape(self.loNouns[0].vector))
@@ -245,6 +243,48 @@ class Sirakis:
         loAvgArticleNouns = [self.dTokens[s] for s in lsAvgArticleNouns]
         #---
         
+        
+        
+        ltUniqueNouns = [(self.dTokens[t[0]], t[1]) for t in self.uniquify([o.lemma_ for o in self.loNouns], True)]
+        ltProbNouns = []
+        for t in ltUniqueNouns:
+            ltProbNouns.append((t[0], (t[1]*t[0].prob)))
+        
+        ltProbNouns.sort(key=lambda t:t[1])
+        loProbKeywords = [t[0] for t in ltProbNouns][0:iKW]
+        
+        
+        return {
+            'loAvgArticleNouns': loAvgArticleNouns,
+            'loProbKeywords': loProbKeywords
+        }
+    
+    
+    def summary(self, iNrSentences = 5):
+        "create a summary of the text"
+        
+        loAvgArticleNouns = self.keywords(iKW = iNrSentences)['loAvgArticleNouns']
+        lsSents = []
+        lUsed = []
+        for oSent in self.loSentences:
+            for oK in loAvgArticleNouns:
+                if oK.lemma_ in [o.lemma_ for o in oSent] and oK.lemma_ not in lUsed and oSent.orth_ not in lsSents:
+                    lsSents.append(oSent.orth_)
+                    lUsed.append(oK.lemma_)
+        
+        
+        return lsSents
+    
+    
+    
+    
+    def other_possibly_useful_shit():
+        "just some stuff that is cool, but not useful right now"
+        
+        
+        #---create local and global clusters of token vectors
+        
+        lClusterTokens = self.get_cluster_heads(self.loNouns)
         
         #which keywords have the highest overall correlation
         loFlatClusterTokens = []
@@ -284,28 +324,13 @@ class Sirakis:
         
         lsCorrKeywords = [o.lemma_ for o in loCorrKeywords]
         if self.sLocation.lower() not in lsCorrKeywords:
-            del lsCorrKeywords[-1] = self.sLocation
+            lsCorrKeywords[-1] = self.sLocation
+        
+        #---
+        
+        lUsefulTokenThings = [lsCorrKeywords, ]
         
         
-        ltUniqueNouns = [(self.dTokens[t[0]], t[1]) for t in self.uniquify([o.lemma_ for o in self.loNouns], True)]
-        ltProbNouns = []
-        for t in ltUniqueNouns:
-            ltProbNouns.append((t[0], (t[1]*t[0].prob)))
-        
-        ltProbNouns.sort(key=lambda t:t[1])
-        loProbKeywords = [t[0] for t in ltProbNouns][0:iKW]
-        
-        
-        return {
-            'lsCorrKeywords': lsCorrKeywords, 
-            'lClusterTokens': lClusterTokens, 
-            'loAvgArticleNouns': loAvgArticleNouns,
-            'loProbKeywords': loProbKeywords
-        }
-    
-    
-    def summary(self, iNrSentences = 5):
-        "create a summary of the text"
         
         loClusterSents = self.get_cluster_heads(self.loSentences, False, 0.3)
         
@@ -343,24 +368,9 @@ class Sirakis:
         
         #---
         
-        #average sentences 
-        loAvgArticleNouns = self.keywords(iKW = iNrSentences)['loAvgArticleNouns']
-        lsSents = []
-        lUsed = []
-        for oS in self.loSentences:
-            for oK in loAvgArticleNouns:
-                if oK.lemma_ in [o.lemma_ for o in oS] and oK.lemma_ not in lUsed and oS.orth_ not in lsSents:
-                    lsSents.append(oS.orth_)
-                    lUsed.append(oK.lemma_)
-        
-        #---
-        
-        
-        
-        
         lMightBeUseful = [loClusterSents, llsPcaComponents, ltSubjects]
-        
-        return lsSents
+    
+    
 
 
 
@@ -373,6 +383,11 @@ oNlp = English()
 
 sHerePath = os.getcwd()
 
+sPath = "{}/articles/{}".format(sHerePath, "economy.txt")
+oS = Sirakis(sPath, oNlp)
+self = oS
+
+
 
 def test(sFile):
     sPath = "{}/articles/{}".format(sHerePath, sFile)
@@ -381,7 +396,6 @@ def test(sFile):
     print "==="
     print(sPath)
     print 'loAvgArticleNouns:   ', dKW['loAvgArticleNouns']
-    print 'lsCorrKeywords:   ', dKW['lsCorrKeywords'], dKW['lClusterTokens']
     print 'loProbKeywords:   ', dKW['loProbKeywords']
     print "---"
     print(oS.summary())
