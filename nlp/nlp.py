@@ -229,6 +229,7 @@ class Sirakis:
     def keywords(self, iKW = 5):
         """
         Returns list with most common noun entity supersets
+        Keywords are found by finding the most common nouns weighted agains their use in the english language
         """
         
         #unit vector of average of all noun tokens
@@ -259,10 +260,13 @@ class Sirakis:
         }
     
     
-    def summary(self, iNrSentences = 5):
-        "create a summary of the text"
+    def summary(self, iMaxSents = 5):
+        """
+        create a summary of the text
+        summary is created by selecting sentences around the average unit vector created by all noun tokens
+        """
         
-        loAvgArticleNouns = self.keywords(iKW = iNrSentences)['loAvgArticleNouns']
+        loAvgArticleNouns = self.keywords(iKW = iMaxSents)['loAvgArticleNouns']
         lsSents = []
         lUsed = []
         for oSent in self.loSentences:
@@ -347,4 +351,4 @@ if __name__ == '__main__':
     sFile = oArgs.file
     
     
-    run(sFile, bLoc)
+    run(sFile)
