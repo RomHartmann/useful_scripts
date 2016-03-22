@@ -2,17 +2,39 @@
 
 def run(sFile):
     import os
-    from spacy.en import English
-    oNlp = English()    #takes a lot of computaion; do once.
-
-    sHerePath = os.getcwd()
-    sPath = "{}/articles/{}".format(sHerePath, sFile)
-    oS = Sirakis(sPath, oNlp)
-
-    print(oS.keywords()['loKeywords'])
     
-    print(oS.summary())
-
+    sHerePath = os.getcwd()
+    
+    def test(sFile):
+        sPath = "{}/articles/{}".format(sHerePath, sFile)
+        oS = Sirakis(sPath=sPath)
+        dKW = oS.keywords()
+        print "==="
+        print(sPath)
+        print 'loAvgArticleNouns:   ', dKW['loAvgArticleNouns']
+        print 'lsKeywords:   ', dKW['lsKeywords']
+        print "---"
+        print(oS.summary())
+        print("\n\n")
+    
+    test("economy.txt")
+    test("economy2.txt")
+    test("economy3.txt")
+    test("fin.txt")
+    test("fin2.txt")
+    test("fin3.txt")
+    test("fin4.txt")
+    test("fin5.txt")
+    test("health.txt")
+    test("health2.txt")
+    test("health3.txt")
+    test("news.txt")
+    test("news2.txt")
+    test("news3.txt")
+    test("news4.txt")
+    test("news5.txt")
+    test("sport.txt")
+    test("sport2.txt")
 
 
 
@@ -31,6 +53,50 @@ class Sirakis:
             need newest version of numpy
     sPath is the path to the text file containing the article
     """
+    
+    Sirakis.oNlp = None
+    def __init__(self, sPath=None, sText=None):
+        
+        if Sirakis.oNlp == None:
+            from spacy.en import English
+            Sirakis.oNlp = English()
+            
+        if sText == None:
+            self.get_text(sPath)
+        elif sPath == None:
+            self.sText = sText
+        
+        self.oDoc           = Sirakis.oNlp(self.sText)
+        
+        self.loTokens       = [o for o in self.oDoc]
+        self.loEntities     = [o for o in self.oDoc.ents]
+        self.loSentences    = [o for o in self.oDoc.sents]
+        self.loAllWords     = [o for o in Sirakis.oNlp.vocab if o.has_vector]
+        
+        self.loTokensAscii  = [o for o in self.loTokens if o.is_ascii]
+        self.loNouns        = [o for o in self.loTokensAscii if 'NN' in o.tag_]     #or o.pos_ == u'NOUN'
+        
+        self.dTokens        = dict(zip( [o.lemma_ for o in self.loTokens], self.loTokens ))
+        self.dSentences     = dict(zip( [o.lemma_ for o in self.loSentences], self.loSentences ))
+    
+    
+    #---initial processing functions
+    def get_text(self, sPath):
+        "unicode text from file"
+        with open(sPath, 'r') as f:
+            sText = f.read()
+        sText = unicode(sText, "utf-8")
+        
+        #extract location from first elements of text if the dash exists in the first 50 characters (NOTE standard format in News24).
+        if u' - ' in sText[0:50]:
+            sLocation = sText.split(u' - ')[0]
+            sText = u' - '.join(sText.split(u' - ')[1::])
+        else:
+            sLocation = u''
+        
+        self.sText = sText
+        self.sLocation = sLocation.lower().strip()
+    
     
     #---helper functions
     def uniquify(self, ls, bCount=False):
@@ -52,44 +118,6 @@ class Sirakis:
                 if s not in lRet:
                     lRet.append(s)
             return lRet
-    
-    
-    
-    
-    def __init__(self, sPath, oNlp):
-        self.oNlp = oNlp
-        self.get_text(sPath)
-        
-        self.oDoc           = self.oNlp(self.sText)
-        
-        self.loTokens       = [o for o in self.oDoc]
-        self.loEntities     = [o for o in self.oDoc.ents]
-        self.loSentences    = [o for o in self.oDoc.sents]
-        self.loAllWords     = [o for o in self.oNlp.vocab if o.has_vector]
-        
-        self.loTokensAscii  = [o for o in self.loTokens if o.is_ascii]
-        self.loNouns        = [o for o in self.loTokensAscii if 'NN' in o.tag_]     #or o.pos_ == u'NOUN'
-        
-        self.dTokens        = dict(zip( [o.lemma_ for o in self.loTokens], self.loTokens ))
-        self.dSentences     = dict(zip( [o.lemma_ for o in self.loSentences], self.loSentences ))
-    
-    
-    #---initial processing functions
-    def get_text(self, sPath):
-        "unicode text from file"
-        with open(sPath, 'r') as f:
-            sText = f.read()
-        sText = unicode(sText, "utf-8")
-        
-        #extract location from first elements of text if the dash exists in the first 50 characters.
-        if u' - ' in sText[0:50]:
-            sLocation = sText.split(u' - ')[0]
-            sText = u' - '.join(sText.split(u' - ')[1::])
-        else:
-            sLocation = u''
-        
-        self.sText = sText
-        self.sLocation = sLocation.lower().strip()
     
     
     #---base data functions
@@ -253,10 +281,11 @@ class Sirakis:
         ltProbNouns.sort(key=lambda t:t[1])
         loProbKeywords = [t[0] for t in ltProbNouns][0:iKW]
         
+        lsKeywords = [o.lemma_ for o in loProbKeywords]
         
         return {
             'loAvgArticleNouns': loAvgArticleNouns,
-            'loKeywords': loProbKeywords
+            'lsKeywords': lsKeywords
         }
     
     
@@ -280,60 +309,6 @@ class Sirakis:
     
     
     
-
-
-
-
-"""
-
-import os
-from spacy.en import English
-oNlp = English()
-
-sHerePath = os.getcwd()
-
-sPath = "{}/articles/{}".format(sHerePath, "economy.txt")
-oS = Sirakis(sPath, oNlp)
-self = oS
-
-
-
-def test(sFile):
-    sPath = "{}/articles/{}".format(sHerePath, sFile)
-    oS = Sirakis(sPath, oNlp)
-    dKW = oS.keywords()
-    print "==="
-    print(sPath)
-    print 'loAvgArticleNouns:   ', dKW['loAvgArticleNouns']
-    print 'loKeywords:   ', dKW['loKeywords']
-    print "---"
-    print(oS.summary())
-    print("\n\n")
-
-
-test("economy.txt")
-test("economy2.txt")
-test("economy3.txt")
-test("fin.txt")
-test("fin2.txt")
-test("fin3.txt")
-test("fin4.txt")
-test("fin5.txt")
-test("health.txt")
-test("health2.txt")
-test("health3.txt")
-test("news.txt")
-test("news2.txt")
-test("news3.txt")
-test("news4.txt")
-test("news5.txt")
-test("sport.txt")
-test("sport2.txt")
-
-
-"""
-
-
 
 
 

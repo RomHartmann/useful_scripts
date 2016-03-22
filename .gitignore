@@ -4,12 +4,19 @@ __pycache__/
 *.csv
 *.log
 *.exe
+*.jpeg
+*.jpg
+*.png
+*.gif
 
 # C extensions
 *.so
 
 # Distribution / packaging
 .Python
+tiddy_this_pic/mosaics
+tiddy_this_pic/mosaics2
+tiddy_this_pic/cute_animals
 env/
 build/
 develop-eggs/
