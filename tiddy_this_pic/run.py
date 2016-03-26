@@ -7,7 +7,8 @@ def run(sImagePath, sDirectory):
     oT = Tiddy(sImagePath, sDirectory)
 
     #oT.get_mosaics_from_online(dSearch)
-    oT.tiddy_this_thang(bMonochrome=False)
+    tResize = (150, 150)
+    oT.tiddy_this_thang(tResize)
 
 
 
@@ -31,6 +32,6 @@ if __name__ == "__main__":
 
     sImagePath = "/home/roman/work/useful_scripts/tiddy_this_pic/tom.png"
 
-    sDirectory = "cute_animals"
+    sDirectory = "all_the_boobies"
 
     run(sImagePath, sDirectory)
