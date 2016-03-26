@@ -30,8 +30,8 @@ class ImageScraper:
 
         import os
         sCWD = os.getcwd()
-        sDirName = sFileName
-        sOutPath = os.path.join(sCWD, sDirName)
+        sOutPath = os.path.join(sCWD, 'mosaic_folders', sFileName)
+        print sOutPath
 
         if not os.path.isdir(sOutPath):
             os.mkdir(sOutPath)
@@ -82,5 +82,3 @@ if __name__ == "__main__":
         bSearch = False
 
     oI = ImageScraper(sURL, bSearch=bSearch)
-
-    #http://www.bignudeboobs.com/ lots of scrapable boob pics (god, I can't believe I'm actually doing this)

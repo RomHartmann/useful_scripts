@@ -14,9 +14,8 @@ __pycache__/
 
 # Distribution / packaging
 .Python
-tiddy_this_pic/mosaics
-tiddy_this_pic/mosaics2
-tiddy_this_pic/cute_animals
+tiddy_this_pic/mosaic_folders
+tiddy_this_pic/tiddied
 env/
 build/
 develop-eggs/

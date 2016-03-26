@@ -4,12 +4,17 @@ __pycache__/
 *.csv
 *.log
 *.exe
+*.jpeg
+*.jpg
+*.png
+*.gif
 
 # C extensions
 *.so
 
 # Distribution / packaging
 .Python
+tiddy_this_pic/mosaic_folders
 env/
 build/
 develop-eggs/
