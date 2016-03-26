@@ -33,9 +33,8 @@ class Tiddy:
             sMosaicPath = os.path.join(sPath, sFile)
 
             oImg = Image.open(sMosaicPath)
+            oImg = self.monochrome_image(oImg)
 
-            # if self.bMonochrome:
-            #     oImg = self.monochrome_image(oImg)
             oResized, aaResized = self.reshape_image(oImg)
             loMosaics.append(oResized)
 
@@ -51,19 +50,11 @@ class Tiddy:
         return loMosaics, dMosaics
 
 
-    def monochrome_image(self, oImage):
-        """make original image monochrome"""
-        oMonoChrome = oImage.convert('LA')
-
-        return oMonoChrome
-
-
     def reshape_image(self, oOrigImage, tResize=(50,50)):
         """downsample the image to create mosaic pixels"""
         import numpy as np
         oNew = oOrigImage.resize(tResize)
         aNew = np.array([t[0] for t in oNew.getdata()])
-        # import pdb; pdb.set_trace()
         aNew = aNew.reshape(tResize)
 
         return oNew, aNew
@@ -122,24 +113,22 @@ class Tiddy:
         return aaMosaicedPic
 
 
+    def monochrome_image(self, oImage):
+        """make original image monochrome"""
+        oMonoChrome = oImage.convert('LA')
+
+        return oMonoChrome
 
 
-
-
-    def tiddy_this_thang(self, bMonochrome=False, tFinalResize=None):
+    def tiddy_this_thang(self, tResize, tFinalResize=None):
         """assigns images instead of pixels and creates a new pictures, saves it"""
-        self.bMonochrome = bMonochrome
-
-        import datetime
-        oBegin = datetime.datetime.now()
 
         #get image to tiddy
         from PIL import Image
         oInputImage = Image.open(self.sImagePath)
-        # if self.bMonochrome:
-        #     oInputImage = self.monochrome_image(oInputImage)
-
-        oImage, aaImage = self.reshape_image(oInputImage, (50,50))
+        oInputImage = self.monochrome_image(oInputImage)
+        
+        oImage, aaImage = self.reshape_image(oInputImage, tResize)
 
         #get all the mosaics
         loMosaics, dMosaics = self.load_mosaics_from_file(self.sDirectory)
@@ -150,8 +139,3 @@ class Tiddy:
         if tFinalResize and (oMosaicedPic.size > tFinalResize):
             oMosaicedPic = oMosaicedPic.resize(tFinalResize)
         oMosaicedPic.save(self.sWritePath)
-
-        print("time taken:  {} from {} images".format(datetime.datetime.now() - oBegin, self.iNrMosaicFiles))
-
-        import pdb; pdb.set_trace()
-
