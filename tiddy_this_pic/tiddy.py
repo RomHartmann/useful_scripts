@@ -41,9 +41,12 @@ class Tiddy:
             #assign average colour to pic, and store in dict
             iAvgColour = sum(sum(aaResized))/aaResized.size
             if iAvgColour in dMosaics:
-                dMosaics[iAvgColour].append(aaResized)
+                dMosaics[iAvgColour]['lAvailable'].append(aaResized)
             else:
-                dMosaics[iAvgColour] = [aaResized]
+                dMosaics[iAvgColour] = {
+                    'lAvailable': [aaResized],
+                    'iUsed': 0
+                }
 
 
 
@@ -80,8 +83,9 @@ class Tiddy:
         import numpy as np
         iOldShapeX = aaImage.shape[0]
         iOldShapeY = aaImage.shape[1]
-        iMosaicShapeX = dMosaics[dMosaics.keys()[0]][0].shape[0]
-        iMosaicShapeY = dMosaics[dMosaics.keys()[0]][0].shape[1]
+        tMosaicShape = dMosaics[dMosaics.keys()[0]]['lAvailable'][0]
+        iMosaicShapeX = tMosaicShape.shape[0]
+        iMosaicShapeY = tMosaicShape.shape[1]
         tNewShape = (iOldShapeX*iMosaicShapeX, iOldShapeY*iMosaicShapeY)
         aaMosaicedPic = np.zeros(tNewShape)
 
@@ -92,17 +96,18 @@ class Tiddy:
             iNearestIndex = (np.abs(aAvailable-iCol)).argmin()
             return aAvailable[iNearestIndex]
 
-        iPicNr = 0
         for iRow in range(len(aaImage)):
             for iCol in range(len(aaImage[iRow])):
                 iPixel = aaImage[iRow, iCol]
 
-                #there can be more than one picture with the right colour
-                lAvailableMosaics = dMosaics[nearest(iPixel)]
+                #there can be more than one picture with the right colour; cycle through
+                dNearestMosaics = dMosaics[nearest(iPixel)]
+                lAvailableMosaics = dNearestMosaics['lAvailable']
+                iPicNr = dNearestMosaics['iUsed']
                 if iPicNr >= len(lAvailableMosaics):
                     iPicNr = 0
                 aaNearest = lAvailableMosaics[iPicNr]
-                iPicNr += 1
+                dNearestMosaics['iUsed'] += 1
 
                 iStartRow = iRow*iMosaicShapeX
                 iEndRow = iStartRow + iMosaicShapeX
@@ -127,7 +132,7 @@ class Tiddy:
         from PIL import Image
         oInputImage = Image.open(self.sImagePath)
         oInputImage = self.monochrome_image(oInputImage)
-        
+
         oImage, aaImage = self.reshape_image(oInputImage, tResize)
 
         #get all the mosaics
