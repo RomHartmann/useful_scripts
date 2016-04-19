@@ -8,14 +8,15 @@ __pycache__/
 *.jpg
 *.png
 *.gif
+*.zip
 
 # C extensions
 *.so
 
 # Distribution / packaging
 .Python
-tiddy_this_pic/mosaic_folders
-tiddy_this_pic/tiddied
+tiddilator/mosaic_folders
+tiddilator/tiddied
 env/
 build/
 develop-eggs/
