@@ -1,0 +1,31 @@
+apiVersion: extensions/v1beta1
+kind: Deployment
+metadata:
+  name: nginx-deployment
+spec:
+  replicas: 2
+  template:
+    metadata:
+      labels:
+        app: solr-nginx
+    spec:
+      containers:
+      - name: solr-nginx-proxy
+        image: nginx:1.13
+        volumeMounts:
+        - name: site-config
+          mountPath: /etc/nginx/
+        - name: htpasswd
+          mountPath: /secrets/
+        ports:
+        - containerPort: 80
+          name: http
+        - containerPort: 443
+          name: https
+      volumes:
+      - name: htpasswd
+        secret:
+          secretName: nginx-htpasswd
+      - name: site-config
+        configMap:
+          name: nginx-config

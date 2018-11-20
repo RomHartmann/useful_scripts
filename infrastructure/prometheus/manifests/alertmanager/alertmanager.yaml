@@ -1,0 +1,10 @@
+apiVersion: monitoring.coreos.com/v1
+kind: Alertmanager
+metadata:
+  name: main
+  labels:
+    alertmanager: main
+spec:
+  replicas: 3
+  version: ALERTMANAGER_VERSION
+  externalUrl: ALERTMANAGER_EXTERNAL_URL

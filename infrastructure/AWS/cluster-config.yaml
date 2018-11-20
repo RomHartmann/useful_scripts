@@ -1,0 +1,53 @@
+apiVersion: kops/v1alpha2
+kind: Cluster
+metadata:
+  creationTimestamp: 2018-03-15T02:28:11Z
+  name: kubernetes-cluster.domain.io
+spec:
+  api:
+    loadBalancer:
+      type: Public
+  authorization:
+    alwaysAllow: {}
+  channel: stable
+  cloudProvider: aws
+  configBase: s3://kubernetes-cluster.domain.io-state/kubernetes-cluster.domain.io
+  dnsZone: domain.io
+  etcdClusters:
+  - etcdMembers:
+    - instanceGroup: master-us-east-1a
+      name: a
+    name: main
+  - etcdMembers:
+    - instanceGroup: master-us-east-1a
+      name: a
+    name: events
+  iam:
+    allowContainerRegistry: true
+    legacy: false
+  kubernetesApiAccess:
+  - 0.0.0.0/0
+  kubernetesVersion: 1.9.3
+  masterPublicName: api.kubernetes-cluster.domain.io
+  networkCIDR: 172.31.0.0/16
+  networkID: vpc-92391af4
+  networking:
+    weave:
+      mtu: 8912
+  nonMasqueradeCIDR: 100.64.0.0/10
+  sshAccess:
+  - 0.0.0.0/0
+  subnets:
+  - cidr: 172.31.224.0/19
+    name: us-east-1a
+    type: Private
+    zone: us-east-1a
+  - cidr: 172.31.128.0/22
+    name: utility-us-east-1a
+    type: Utility
+    zone: us-east-1a
+  topology:
+    dns:
+      type: Public
+    masters: private
+    nodes: private

@@ -1,0 +1,14 @@
+apiVersion: v1
+metadata:
+  name: es-env
+kind: ConfigMap
+data:
+  es-cluster-name: es-logs
+  es-client-heap: 256m
+  es-master-heap: 256m
+  es-data-heap: 256m
+  es-number-of-replicas: "1"
+  es-remove-indices-older-than-days: "60"
+  es-client-endpoint: http://elasticsearch-logging:9200
+  # es-persistent-storage=true won't allow node on shutdown to relocate shards accross the cluster
+  es-persistent-storage: "false"

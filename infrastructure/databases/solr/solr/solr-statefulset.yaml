@@ -1,0 +1,68 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: solr-cluster
+  labels:
+    app: solr
+spec:
+  ports:
+  - port: 8983
+    targetPort: 8983
+    name: api
+  # Make Solr do its own discovery
+  clusterIP: None
+  selector:
+    app: solr
+---
+apiVersion: apps/v1beta1
+kind: StatefulSet
+metadata:
+  name: solr
+spec:
+  volumeClaimTemplates:
+  - metadata:
+      name: index
+    spec:
+      storageClassName: default
+      accessModes:
+        - ReadWriteOnce
+      resources:
+        requests:
+          storage: 50Gi
+          
+  serviceName: solr-cluster
+  replicas: 3
+  template:
+    metadata:
+      labels:
+        app: solr
+    spec:
+      terminationGracePeriodSeconds: 0
+      containers:
+      - name: solr
+        image: 00112233.dkr.ecr.us-east-1.amazonaws.com/solr:7.2
+        imagePullPolicy: Always
+        ports:
+        - containerPort: 8983
+          name: "api"
+        volumeMounts:
+        - name: index
+          mountPath: /data
+        resources:
+          requests:
+            memory: 4000Mi
+        env:
+        - name: POD_NAME
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.name
+        - name: SOLR_MEM
+          value: "3500m"
+        - name: ZOOKEEPER_CLUSTER
+          value: "zk-0.zk-cluster:2181,zk-1.zk-cluster:2181,zk-2.zk-cluster:2181"
+        - name: SERVICE_NAME
+          value: "solr-cluster"
+        - name: DATA_MOUNT_PATH
+          value: "/data"
+        - name: KUBERNETES
+          value: "true"

@@ -1,0 +1,41 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: fooapp-service
+spec:
+  ports:
+    - name: "fooapp"
+      port: 80
+      targetPort: 5000
+  selector:
+    app: "fooapp"
+---
+apiVersion: extensions/v1beta1
+kind: Deployment
+metadata:
+  name: "fooapp"
+spec:
+  replicas: 2
+  template:
+    metadata:
+      labels:
+        app: "fooapp"
+    spec:
+      containers:
+        - image: 00112233.dkr.ecr.us-east-1.amazonaws.com/foo
+          imagePullPolicy: Always
+          env:
+          - name: SECRET_ENV
+            valueFrom:
+              secretKeyRef:
+                name: secret-name
+                key: my-secret
+          - name: CONFIG_MAP
+            valueFrom:
+              configMapKeyRef:
+                name: cm-name
+                key: my-configmap.conf
+          name: "fooapp"
+          ports:
+            - containerPort: 5000
+              protocol: "TCP"

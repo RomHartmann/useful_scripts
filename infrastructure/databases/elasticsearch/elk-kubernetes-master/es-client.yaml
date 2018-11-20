@@ -1,0 +1,105 @@
+apiVersion: extensions/v1beta1
+kind: Deployment
+metadata:
+  name: es-client
+  labels:
+    component: elasticsearch
+    role: client
+spec:
+  replicas: 2
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  template:
+    metadata:
+      labels:
+        component: elasticsearch
+        role: client
+      annotations:
+        scheduler.alpha.kubernetes.io/affinity: |
+          {
+            "podAntiAffinity": {
+              "requiredDuringSchedulingIgnoredDuringExecution": [
+                {
+                  "labelSelector": {
+                    "matchLabels": {
+                        "component": "elasticsearch",
+                        "role": "client"
+                      }
+                  },
+                  "topologyKey": "kubernetes.io/hostname"
+                }
+              ]
+            }
+          }
+    spec:
+      containers:
+      - name: es-client
+        securityContext:
+          privileged: true
+          capabilities:
+            add:
+              - IPC_LOCK
+        image: kayrus/docker-elasticsearch-kubernetes:2.4.4
+        args:
+        - /run.sh
+        - -Des.path.conf=/etc/elasticsearch
+        readinessProbe:
+          httpGet:
+            path: /
+            port: 9200
+            scheme: HTTP
+          timeoutSeconds: 1
+          successThreshold: 3
+        livenessProbe:
+          httpGet:
+            path: /_cluster/health
+            port: 9200
+            scheme: HTTP
+          initialDelaySeconds: 360
+          timeoutSeconds: 2
+        imagePullPolicy: Always
+        env:
+        - name: NAMESPACE
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.namespace
+        - name: CLUSTER_NAME
+          valueFrom:
+            configMapKeyRef:
+              name: es-env
+              key: es-cluster-name
+        - name: NODE_MASTER
+          value: 'false'
+        - name: NODE_DATA
+          value: 'false'
+        - name: HTTP_ENABLE
+          value: 'true'
+        - name: ES_HEAP_SIZE
+          valueFrom:
+            configMapKeyRef:
+              name: es-env
+              key: es-client-heap
+        - name: ES_CLIENT_ENDPOINT
+          valueFrom:
+            configMapKeyRef:
+              name: es-env
+              key: es-client-endpoint
+        - name: "NETWORK_HOST"
+          value: "_site_,_lo_,eth0:ipv4"
+        ports:
+        - name: transport
+          containerPort: 9300
+          protocol: TCP
+        - name: http
+          containerPort: 9200
+          protocol: TCP
+        volumeMounts:
+        - name: es-config
+          mountPath: /etc/elasticsearch
+      volumes:
+      - name: es-config
+        configMap:
+          name: es-config

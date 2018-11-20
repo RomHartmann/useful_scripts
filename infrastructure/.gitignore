@@ -1,0 +1,11 @@
+*.pyc
+/dist/
+/build/
+*.egg-info
+/.idea/
+/.cache
+/data
+
+.eggs
+.vscode
+local

@@ -1,0 +1,13 @@
+tickTime=2000
+initLimit=10
+syncLimit=5
+dataDir={{ data_dir }}
+dataLogDir={{ log_dir }}
+clientPort=2181
+{% if host_prefix == 'localhost' -%}
+    server.0={{ host_prefix }}:2888:3888
+{% else -%}
+{% for replica_number in range(0,replica_set) -%}
+    server.{{ replica_number }}={{ host_prefix }}-{{ replica_number }}.{{ service_name }}:2888:3888
+{% endfor -%}
+{% endif -%}

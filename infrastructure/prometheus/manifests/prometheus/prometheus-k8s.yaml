@@ -1,0 +1,47 @@
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: ssd
+  annotations:
+    storageclass.beta.kubernetes.io/is-default-class: "true"
+provisioner: STORAGE_CLASS_PROVISIONER
+parameters:
+  type: STORAGE_CLASS_TYPE
+---
+apiVersion: monitoring.coreos.com/v1
+kind: Prometheus
+metadata:
+  name: k8s
+  labels:
+    prometheus: k8s
+spec:
+  replicas: 2
+  version: PROMETHEUS_VERSION
+  externalUrl: PROMETHEUS_EXTERNAL_URL
+  serviceAccountName: prometheus-k8s
+  serviceMonitorSelector:
+    matchExpressions:
+    - {key: k8s-app, operator: Exists}
+  ruleSelector:
+    matchLabels:
+      role: prometheus-rulefiles
+      prometheus: k8s
+  resources:
+    requests:
+      memory: PROMETHEUS_MEMORY_REQUEST
+  retention: PROMETHEUS_STORAGE_RETENTION
+  storage:
+    volumeClaimTemplate:
+      metadata:
+        annotations:
+          annotation1: prometheus
+      spec:
+        storageClassName: ssd
+        resources:
+          requests:
+            storage: PROMETHEUS_STORAGE_VOLUME_SIZE
+  alerting:
+    alertmanagers:
+    - namespace: monitoring
+      name: alertmanager-main
+      port: web

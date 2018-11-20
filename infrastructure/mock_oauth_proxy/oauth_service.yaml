@@ -1,0 +1,43 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: "oauth-proxy-service"
+  annotations:
+    # Note that the backend talks over HTTP.
+    service.beta.kubernetes.io/aws-load-balancer-backend-protocol: http
+    service.beta.kubernetes.io/aws-load-balancer-ssl-cert: arn:aws:acm:us-east-1:00112233:certificate/dfc3d434-1591-4aec-8189-888888888888
+    # Only run SSL on the port named "https" below.
+    service.beta.kubernetes.io/aws-load-balancer-ssl-ports: "https"
+spec:
+  ports:
+    - name: http
+      port: 80
+      # Use named container port.
+      targetPort: backend-http
+    - name: https
+      port: 443
+      # Use named container port.
+      targetPort: backend-http
+  selector:
+    app: "oauth-proxy"
+  type: LoadBalancer
+---
+apiVersion: extensions/v1beta1
+kind: Deployment
+metadata:
+  name: "oauth-proxy"
+spec:
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        app: "oauth-proxy"
+    spec:
+      containers:
+        - image: 00112233.dkr.ecr.us-east-1.amazonaws.com/oauth_proxy
+          imagePullPolicy: Always
+          name: "oauth-proxy"
+          ports:
+            - containerPort: 8080
+              protocol: "TCP"
+              name: backend-http
